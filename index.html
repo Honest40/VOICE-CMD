@@ -2,223 +2,197 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Read Fast Pro</title>
+<title>Read Fluent – Adult Edition</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 
 <style>
 body{
   margin:0;
-  font-family:Arial,Helvetica,sans-serif;
-  background:linear-gradient(135deg,#0f2027,#203a43,#2c5364);
-  color:#fff;
-  text-align:center;
+  font-family:system-ui, -apple-system, Segoe UI, Roboto, sans-serif;
+  background:#0b0f19;
+  color:#e5e7eb;
 }
 header{
-  padding:15px;
-  font-size:22px;
-  font-weight:bold;
+  padding:18px;
+  font-size:20px;
+  text-align:center;
+  background:#020617;
+  font-weight:600;
 }
 .container{
-  max-width:600px;
+  max-width:900px;
   margin:auto;
-  padding:10px;
+  padding:20px;
 }
-.word{
-  font-size:36px;
-  margin:20px auto;
-  padding:15px 25px;
-  border-radius:12px;
-  background:#111827;
-  display:inline-block;
-  animation:pop 0.3s ease;
+.card{
+  background:#020617;
+  border-radius:14px;
+  padding:40px;
+  font-size:28px;
+  line-height:1.6;
+  margin-top:30px;
+  transition:opacity 0.4s ease;
 }
-@keyframes pop{from{transform:scale(0.8)}to{transform:scale(1)}}
-.correct{background:#16a34a;}
-.wrong{background:#dc2626;animation:shake 0.3s;}
-@keyframes shake{0%{transform:translateX(0)}25%{transform:translateX(-5px)}50%{transform:translateX(5px)}100%{transform:translateX(0)}}
-
-input,button{
-  padding:12px;
-  font-size:16px;
-  border-radius:8px;
-  border:none;
-  margin:8px;
-}
-button{
-  background:#2563eb;
-  color:white;
-  font-weight:bold;
-  cursor:pointer;
-}
+.fade{opacity:0;}
 .stats{
-  font-size:18px;
-  margin:10px;
+  display:flex;
+  justify-content:space-between;
+  font-size:14px;
+  opacity:0.8;
 }
 .progress{
-  height:10px;
-  background:#374151;
-  border-radius:10px;
-  overflow:hidden;
-  margin:15px;
+  height:6px;
+  background:#1f2933;
+  border-radius:6px;
+  margin-top:15px;
 }
-.progress-bar{
+.bar{
   height:100%;
-  width:100%;
   background:#22c55e;
-  transition:width 0.2s linear;
+  width:100%;
+}
+button{
+  margin-top:25px;
+  padding:12px 22px;
+  font-size:14px;
+  border:none;
+  border-radius:8px;
+  background:#2563eb;
+  color:#fff;
+  font-weight:600;
 }
 #message{
-  font-size:22px;
-  margin-top:15px;
-  font-weight:bold;
+  margin-top:20px;
+  font-size:16px;
+  opacity:0.85;
 }
-.hidden{display:none;}
 </style>
 </head>
 
 <body>
 
-<header>📚 READ FAST PRO</header>
+<header>READ FLUENT — Adult Edition</header>
 
 <div class="container">
 
 <div class="stats">
-Level: <span id="level">1</span> |
-Score: <span id="score">0</span> |
-Lives: <span id="lives">3</span> |
-Streak: <span id="streak">0</span>
+  <div>Level: <span id="level">1</span></div>
+  <div>Accuracy: <span id="accuracy">100%</span></div>
+  <div>Speed</div>
 </div>
 
-<div class="progress">
-  <div class="progress-bar" id="progressBar"></div>
-</div>
+<div class="progress"><div id="bar" class="bar"></div></div>
 
-<div id="wordBox" class="word hidden"></div>
+<div id="card" class="card"></div>
 
-<input id="input" placeholder="Type the word here">
-<br>
-<button onclick="checkTyped()">Submit</button>
-<button onclick="startGame()">Start Game</button>
+<button onclick="start()">Start / Resume</button>
 
 <div id="message"></div>
 
 </div>
 
 <script>
-/* WORD LEVELS */
-const levels = [
-  ["cat","dog","sun","book","pen"],
-  ["apple","banana","orange","table","window"],
-  ["computer","elephant","pronounce","language","education"],
-  ["responsibility","communication","pronunciation","understanding"]
+/* ADULT CONTENT LEVELS */
+const content=[
+ ["policy","office","market","value","strategy"],
+ ["The meeting has been scheduled for tomorrow.",
+  "Please review the document carefully."],
+ ["Clear communication improves workplace efficiency.",
+  "Time management is essential for productivity."],
+ ["Strategic planning requires careful analysis of available data."],
+ ["Effective leadership is built on trust, consistency, and accountability."]
 ];
 
-let level=0, score=0, lives=3, streak=0;
-let currentWord="";
-let timeLeft=100;
-let timerInterval;
+let level=0,index=0;
+let attempts=0,correct=0;
+let time=100,timer;
 
-/* ELEMENTS */
-const wordBox=document.getElementById("wordBox");
-const input=document.getElementById("input");
-const msg=document.getElementById("message");
-const progressBar=document.getElementById("progressBar");
+const card=document.getElementById("card");
+const bar=document.getElementById("bar");
 
-function startGame(){
-  level=0; score=0; lives=3; streak=0;
-  updateStats();
-  msg.innerText="";
-  nextWord();
-  startVoice();
-}
-
-function nextWord(){
-  clearInterval(timerInterval);
-  timeLeft=100;
-  currentWord=levels[level][Math.floor(Math.random()*levels[level].length)];
-  wordBox.innerText=currentWord;
-  wordBox.className="word";
-  wordBox.classList.remove("hidden");
-  input.value="";
+function start(){
+  show();
+  listen();
   startTimer();
 }
 
+function show(){
+  time=100;
+  bar.style.width="100%";
+  card.classList.remove("fade");
+  card.innerText=content[level][index];
+}
+
 function startTimer(){
-  timerInterval=setInterval(()=>{
-    timeLeft--;
-    progressBar.style.width=timeLeft+"%";
-    if(timeLeft<=0){
-      loseLife();
-    }
-  },100);
+  clearInterval(timer);
+  timer=setInterval(()=>{
+    time--;
+    bar.style.width=time+"%";
+    if(time<=0) show();
+  },150);
 }
 
-function checkAnswer(answer){
-  if(answer.toLowerCase()===currentWord.toLowerCase()){
-    score+=10;
-    streak++;
-    wordBox.classList.add("correct");
-    speak("Correct!");
-    if(streak%5===0 && level<levels.length-1){level++;}
-    setTimeout(nextWord,500);
-  }else{
-    wordBox.classList.add("wrong");
-    speak("Try again");
-    loseLife();
-  }
-  updateStats();
-}
-
-function checkTyped(){
-  if(input.value.trim()!==""){
-    checkAnswer(input.value.trim());
-  }
-}
-
-function loseLife(){
-  lives--;
-  streak=0;
-  updateStats();
-  if(lives<=0){
-    gameOver();
-  }else{
-    nextWord();
-  }
-}
-
-function gameOver(){
-  clearInterval(timerInterval);
-  stopVoice();
-  wordBox.classList.add("hidden");
-  msg.innerText="💀 Game Over! Score: "+score;
-}
-
-function updateStats(){
-  document.getElementById("score").innerText=score;
-  document.getElementById("lives").innerText=lives;
-  document.getElementById("level").innerText=level+1;
-  document.getElementById("streak").innerText=streak;
-}
-
-/* VOICE RECOGNITION */
-let recognition;
-function startVoice(){
-  if(!('webkitSpeechRecognition'in window||'SpeechRecognition'in window))return;
-  recognition=new (window.SpeechRecognition||window.webkitSpeechRecognition)();
-  recognition.continuous=true;
-  recognition.lang="en-US";
-  recognition.onresult=e=>{
-    let spoken=e.results[e.results.length-1][0].transcript.trim();
-    checkAnswer(spoken);
+/* VOICE */
+let rec;
+function listen(){
+  if(!('webkitSpeechRecognition'in window||'SpeechRecognition'in window)) return;
+  rec=new (window.SpeechRecognition||window.webkitSpeechRecognition)();
+  rec.lang="en-US";
+  rec.continuous=true;
+  rec.onresult=e=>{
+    let spoken=e.results[e.results.length-1][0].transcript;
+    check(spoken);
   };
-  recognition.start();
+  rec.start();
 }
-function stopVoice(){if(recognition)recognition.stop();}
 
-/* VOICE FEEDBACK */
-function speak(text){
-  let u=new SpeechSynthesisUtterance(text);
-  speechSynthesis.speak(u);
+function normalize(t){
+  return t.replace(/[^\w\s]/g,"").toLowerCase().trim();
+}
+
+function similarity(a,b){
+  let same=0;
+  for(let i=0;i<Math.min(a.length,b.length);i++){
+    if(a[i]===b[i]) same++;
+  }
+  return same/Math.max(a.length,b.length);
+}
+
+function check(spoken){
+  attempts++;
+  let expected=normalize(content[level][index]);
+  let said=normalize(spoken);
+  if(said.includes(expected)||similarity(expected,said)>0.75){
+    correct++;
+    card.classList.add("fade");
+    setTimeout(next,400);
+  }
+  updateAccuracy();
+}
+
+function next(){
+  index++;
+  if(index>=content[level].length){
+    level++;
+    index=0;
+    if(level>=content.length){
+      end();
+      return;
+    }
+  }
+  show();
+}
+
+function updateAccuracy(){
+  document.getElementById("accuracy").innerText=
+    Math.round((correct/attempts)*100)+"%";
+}
+
+function end(){
+  clearInterval(timer);
+  rec.stop();
+  card.innerText="Session completed. Your reading fluency has improved.";
+  document.getElementById("message").innerText="You may restart or continue training.";
 }
 </script>
 
