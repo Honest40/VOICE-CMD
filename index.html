@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Personal & Safety Voice Assistant</title>
+<title>Personal Safety Assistant + Face & Voice</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <style>
 body{margin:0;font-family:Arial;background:#020617;color:#fff}
@@ -11,17 +11,18 @@ header{padding:15px;text-align:center;font-size:18px;border-bottom:1px solid #1e
 button,input,textarea{width:100%;padding:12px;margin-top:8px;border-radius:8px;border:none;font-size:15px}
 button{background:#22c55e;color:#000;font-weight:bold}
 .card{border:1px solid #1e293b;border-radius:10px;padding:12px;margin-top:12px}
-.log{background:#000;padding:10px;border-radius:6px;min-height:60px}
-video{width:100%;display:none;border-radius:10px}
+.log{background:#000;padding:10px;border-radius:6px;min-height:60px;overflow-wrap: break-word;}
+video,canvas{width:100%;border-radius:10px;margin-top:10px;}
+#overlay{position:absolute;top:0;left:0;}
 </style>
 </head>
 <body>
 
-<header>🎙 Personal & Safety Voice Assistant</header>
+<header>🎙 Personal Safety + Face & Voice Assistant</header>
 
 <div class="container">
 
-<button onclick="startVoice()">▶ Start Voice Control</button>
+<button id="startBtn">▶ Start Assistant</button>
 
 <div class="card">
 <b>Heard</b>
@@ -39,8 +40,9 @@ video{width:100%;display:none;border-radius:10px}
 </div>
 
 <div class="card">
-<b>🎥 Camera</b>
-<video id="cam" autoplay playsinline></video>
+<b>🎥 Camera Feed</b>
+<video id="cam" autoplay playsinline muted></video>
+<canvas id="overlay"></canvas>
 </div>
 
 <div class="card">
@@ -52,134 +54,171 @@ video{width:100%;display:none;border-radius:10px}
 
 </div>
 
+<!-- Face API library -->
+<script defer src="https://cdn.jsdelivr.net/npm/face-api.js"></script>
+
 <script>
-/* ========= VOICE ENGINE ========= */
-const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
-const rec = new SR();
-rec.continuous = true;
-rec.interimResults = false;
-rec.lang = navigator.language || "en-US";
+/* ==== GLOBAL VARIABLES ==== */
+let rec, isVoiceActive=false;
+let dictation=false, camStream=null, watchId=null;
+const startBtn=document.getElementById("startBtn");
+const heard=document.getElementById("heard");
+const response=document.getElementById("response");
+const loc=document.getElementById("loc");
+const cam=document.getElementById("cam");
+const overlay=document.getElementById("overlay");
+const submitBtn=document.getElementById("submitBtn");
+const nameInput=document.getElementById("name");
+const noteInput=document.getElementById("note");
 
-let dictation = false;
-let camStream = null;
-let watchId = null;
-
+/* ==== SPEECH FUNCTIONS ==== */
 function speak(text){
   speechSynthesis.cancel();
-  let msg = new SpeechSynthesisUtterance(text);
-  msg.rate = 1;
-  msg.pitch = 1;
-  msg.lang = rec.lang;
+  let msg=new SpeechSynthesisUtterance(text);
+  msg.rate=1; msg.pitch=1; msg.lang=navigator.language||"en-US";
   speechSynthesis.speak(msg);
-  response.innerText = text;
+  response.innerText=text;
 }
 
-/* ========= CAMERA ========= */
+/* ==== CAMERA ==== */
 async function openCamera(){
   if(camStream) return;
-  camStream = await navigator.mediaDevices.getUserMedia({video:{facingMode:"user"}});
-  cam.srcObject = camStream;
-  cam.style.display = "block";
-  speak("Camera turned on");
+  try{
+    camStream = await navigator.mediaDevices.getUserMedia({video:{facingMode:"user"}, audio:false});
+    cam.srcObject = camStream;
+    cam.style.display="block";
+    overlay.width=cam.videoWidth;
+    overlay.height=cam.videoHeight;
+    speak("Camera on");
+    detectFaceLoop();
+  }catch(err){speak("Camera permission denied or error");}
 }
 function closeCamera(){
   if(!camStream) return;
   camStream.getTracks().forEach(t=>t.stop());
-  camStream = null;
-  cam.style.display = "none";
-  speak("Camera turned off");
+  camStream=null;
+  cam.style.display="none";
+  speak("Camera off");
 }
 
-/* ========= LOCATION ========= */
+/* ==== LOCATION ==== */
 function startTracking(){
   if(watchId) return;
-  watchId = navigator.geolocation.watchPosition(pos=>{
-    loc.innerHTML = `Lat: ${pos.coords.latitude}<br>Lng: ${pos.coords.longitude}<br>Accuracy: ${pos.coords.accuracy}m`;
-  });
-  speak("Live location tracking started");
+  if(!navigator.geolocation){speak("Geolocation not supported"); return;}
+  watchId=navigator.geolocation.watchPosition(pos=>{
+    loc.innerHTML=`Lat: ${pos.coords.latitude}<br>Lng: ${pos.coords.longitude}<br>Accuracy: ${pos.coords.accuracy} m`;
+  },err=>{speak("Location permission denied or error");},{enableHighAccuracy:true});
+  speak("Location tracking started");
 }
 function stopTracking(){
   navigator.geolocation.clearWatch(watchId);
-  watchId = null;
-  loc.innerText = "Location tracking stopped";
+  watchId=null;
+  loc.innerText="Location tracking stopped";
   speak("Tracking stopped");
 }
 
-/* ========= COMMAND HANDLER ========= */
-function handle(cmd){
-  heard.innerText = cmd;
-
-  // Dictation mode
+/* ==== DICTATION ==== */
+function typeCommand(cmd){
   if(dictation){
-    let f = document.activeElement;
+    let f=document.activeElement;
     if(f && (f.tagName==="INPUT"||f.tagName==="TEXTAREA")){
-      f.value += cmd + " ";
-      return;
+      f.value += cmd+" ";
     }
   }
+}
+
+/* ==== COMMAND HANDLER ==== */
+function handle(cmd){
+  heard.innerText=cmd;
+  typeCommand(cmd);
 
   // Click buttons
   if(cmd.startsWith("click")){
-    let text = cmd.replace("click","").trim();
+    let text=cmd.replace("click","").trim();
     document.querySelectorAll("button").forEach(b=>{
       if(b.innerText.toLowerCase().includes(text)){
-        b.click();
-        speak(text + " clicked");
+        b.click(); speak(text+" clicked");
       }
     });
     return;
   }
 
-  // Type into active field
-  if(cmd.startsWith("type")){
-    let txt = cmd.replace("type","").trim();
-    let f = document.activeElement;
-    if(f && (f.tagName==="INPUT"||f.tagName==="TEXTAREA")){
-      f.value += txt + " ";
-      speak("Typed "+txt);
-    }
-    return;
-  }
-
   // Emergency
   if(cmd.includes("emergency") || cmd.includes("help me")){
-    speak("Emergency detected. Stay calm and seek help if needed.");
+    speak("Emergency detected. Stay calm. Activate safety protocols.");
     return;
   }
 
-  // Commands mapping
-  const commands = {
+  // Map of other commands
+  const commands={
     "start camera": openCamera,
     "stop camera": closeCamera,
     "start tracking": startTracking,
     "stop tracking": stopTracking,
-    "dictation on": ()=>{dictation=true;speak("Dictation mode on")},
-    "dictation off": ()=>{dictation=false;speak("Dictation mode off")},
+    "dictation on": ()=>{dictation=true;speak("Dictation on")},
+    "dictation off": ()=>{dictation=false;speak("Dictation off")},
     "submit": ()=>submitBtn.click(),
-    "clear form": ()=>{name.value="";note.value="";speak("Form cleared")},
+    "clear form": ()=>{nameInput.value="";noteInput.value="";speak("Form cleared")},
     "status": ()=>speak("System running normally"),
     "what time": ()=>speak("The time is "+new Date().toLocaleTimeString()),
     "what date": ()=>speak("Today is "+new Date().toDateString()),
     "help": ()=>speak("Say start camera, start tracking, dictation on, or emergency")
   };
-
-  for(let k in commands){
-    if(cmd.includes(k)){ commands[k](); return; }
-  }
-
-  speak("Command received but unclear");
+  for(let k in commands){if(cmd.includes(k)){commands[k](); return;}}
+  speak("Command unclear");
 }
 
-/* ========= VOICE RECOGNITION ========= */
-rec.onresult = e=>{
-  let cmd = e.results[e.results.length-1][0].transcript.toLowerCase().trim();
-  handle(cmd);
-}
-
-function startVoice(){
+/* ==== VOICE RECOGNITION ==== */
+function startVoiceRecognition(){
+  if(isVoiceActive) return;
+  rec=new (window.SpeechRecognition||window.webkitSpeechRecognition)();
+  rec.continuous=true;
+  rec.interimResults=false;
+  rec.lang=navigator.language||"en-US";
+  rec.onresult=e=>{
+    let cmd=e.results[e.results.length-1][0].transcript.toLowerCase().trim();
+    handle(cmd);
+  };
+  rec.onerror=e=>{speak("Voice recognition error")};
   rec.start();
-  speak("Voice Assistant activated. You can control everything hands-free now.");
+  isVoiceActive=true;
+  speak("Voice Assistant activated. You can control everything now.");
 }
+
+/* ==== FACE RECOGNITION ==== */
+let labeledDescriptors=null;
+async function loadFaceModels(){
+  await faceapi.nets.tinyFaceDetector.loadFromUri("https://justadomain.github.io/models");
+  await faceapi.nets.faceLandmark68Net.loadFromUri("https://justadomain.github.io/models");
+  await faceapi.nets.faceRecognitionNet.loadFromUri("https://justadomain.github.io/models");
+  await faceapi.nets.ssdMobilenetv1.loadFromUri("https://justadomain.github.io/models");
+  speak("Face models loaded");
+}
+async function detectFaceLoop(){
+  if(!camStream) return;
+  const displaySize={width:cam.videoWidth,height:cam.videoHeight};
+  faceapi.matchDimensions(overlay, displaySize);
+  setInterval(async ()=>{
+    const detections=await faceapi.detectAllFaces(cam,new faceapi.TinyFaceDetectorOptions())
+      .withFaceLandmarks().withFaceDescriptors();
+    const ctx=overlay.getContext("2d");
+    ctx.clearRect(0,0,overlay.width,overlay.height);
+    if(detections.length>0){
+      const resizedDetections=faceapi.resizeResults(detections,displaySize);
+      faceapi.draw.drawDetections(overlay,resizedDetections);
+      faceapi.draw.drawFaceLandmarks(overlay,resizedDetections);
+      // Optional: match with labeled descriptors if registered
+    }
+  },200);
+}
+
+/* ==== START BUTTON ==== */
+startBtn.addEventListener("click",async ()=>{
+  try{await navigator.mediaDevices.getUserMedia({audio:true,video:true});}catch(e){speak("Microphone/Camera permission denied"); return;}
+  startVoiceRecognition();
+  await loadFaceModels();
+  openCamera();
+});
 </script>
 
 </body>
