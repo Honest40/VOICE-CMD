@@ -3,16 +3,17 @@
 <head>
 <meta charset="UTF-8">
 <title>Android Security Assistant</title>
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
 <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
 <style>
-body{margin:0;font-family:Arial;background:#020617;color:#fff}
-header{padding:15px;text-align:center;font-size:18px;border-bottom:1px solid #1e293b}
-.container{padding:10px}
+body{margin:0;font-family:Arial;background:#0a0f23;color:#fff}
+header{padding:15px;text-align:center;font-size:18px;background:#020617}
+.container{padding:12px}
 button,input,textarea{width:100%;padding:12px;margin-top:8px;border-radius:8px;border:none;font-size:15px}
 button{background:#22c55e;color:#000;font-weight:bold}
 .card{border:1px solid #1e293b;border-radius:10px;padding:12px;margin-top:12px}
-.log{background:#000;padding:10px;border-radius:6px;min-height:60px;overflow-wrap: break-word;}
+.log{background:#000;padding:10px;border-radius:6px;min-height:60px;overflow-wrap:break-word;}
 video,canvas{width:100%;border-radius:10px;margin-top:10px;}
 #map{height:250px;border-radius:10px;margin-top:10px;}
 </style>
@@ -47,183 +48,200 @@ video,canvas{width:100%;border-radius:10px;margin-top:10px;}
 </div>
 </div>
 
-<!-- Face API -->
 <script defer src="https://cdn.jsdelivr.net/npm/face-api.js"></script>
-<!-- Leaflet for map -->
 <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
 <script>
-/* ===== GLOBALS ===== */
-let rec, isVoiceActive=false;
+/* ==== GLOBALS ==== */
+let rec, voiceActive=false;
 let camStream=null, watchId=null;
-let trustedFaceDetected=false;
-let dictation=false;
-
-const startBtn=document.getElementById("startBtn");
-const heard=document.getElementById("heard");
-const response=document.getElementById("response");
-const loc=document.getElementById("loc");
+let dictation=false, trustedFacePresent=false;
+const heardEl=document.getElementById("heard");
+const responseEl=document.getElementById("response");
+const locEl=document.getElementById("loc");
 const cam=document.getElementById("cam");
 const overlay=document.getElementById("overlay");
-const mapDiv=document.getElementById("map");
-
 let map, marker;
 
-/* ===== SPEECH ===== */
+/* ==== UTILITY FUNCTIONS ==== */
 function speak(text){
   speechSynthesis.cancel();
-  let msg=new SpeechSynthesisUtterance(text);
-  msg.lang=navigator.language||"en-US";
-  speechSynthesis.speak(msg);
-  response.innerText=text;
+  let u=new SpeechSynthesisUtterance(text);
+  u.lang=navigator.language||"en-US";
+  speechSynthesis.speak(u);
+  responseEl.innerText=text;
 }
 
-/* ===== CAMERA ===== */
+function savePhoto(blob){
+  const link=document.createElement("a");
+  link.href=URL.createObjectURL(blob);
+  link.download=`emergency_${Date.now()}.png`;
+  link.click();
+  speak("Emergency photo saved");
+}
+
+/* ==== CAMERA CONTROL ==== */
 async function openCamera(){
   if(camStream) return;
   try{
     camStream = await navigator.mediaDevices.getUserMedia({video:{facingMode:"user"}});
     cam.srcObject = camStream;
-    cam.style.display="block";
     overlay.width=cam.videoWidth;
     overlay.height=cam.videoHeight;
+    detectFacesLoop();
     speak("Camera on");
-    detectFaceLoop();
-  }catch(err){speak("Camera permission denied");}
+  }catch(e){speak("Camera permission denied");}
 }
+
 function closeCamera(){
   if(!camStream) return;
   camStream.getTracks().forEach(t=>t.stop());
   camStream=null;
-  cam.style.display="none";
   speak("Camera off");
 }
 
-/* ===== LOCATION ===== */
-function initMap(lat=0,lng=0){
-  map=L.map(mapDiv).setView([lat,lng],16);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{
-    maxZoom:19
+/* ==== GPS & MAP ==== */
+function initMap(lat,lng){
+  map=L.map('map').setView([lat,lng],15);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+    maxZoom: 19
   }).addTo(map);
   marker=L.marker([lat,lng]).addTo(map);
 }
-function updateLocation(pos){
-  const lat=pos.coords.latitude;
-  const lng=pos.coords.longitude;
-  loc.innerHTML=`Lat: ${lat}<br>Lng: ${lng}<br>Accuracy: ${pos.coords.accuracy} m`;
-  if(map && marker){marker.setLatLng([lat,lng]); map.setView([lat,lng]);}
+
+function updateLocation(position){
+  const lat=position.coords.latitude;
+  const lng=position.coords.longitude;
+  locEl.innerHTML=`Lat: ${lat}<br>Lng: ${lng}<br>Accuracy: ${position.coords.accuracy} m`;
+  if(marker){marker.setLatLng([lat,lng]); map.setView([lat,lng]);}
 }
+
 function startTracking(){
   if(!navigator.geolocation){speak("Geolocation not supported"); return;}
-  watchId=navigator.geolocation.watchPosition(updateLocation,err=>speak("Location error"),{enableHighAccuracy:true});
-  speak("Location tracking started");
+  watchId=navigator.geolocation.watchPosition(updateLocation,()=>{
+    speak("Location error");
+  },{enableHighAccuracy:true});
+  speak("Tracking started");
 }
+
 function stopTracking(){
-  if(watchId){navigator.geolocation.clearWatch(watchId); watchId=null; loc.innerText="Location tracking stopped";}
+  if(watchId){navigator.geolocation.clearWatch(watchId); watchId=null;}
   speak("Tracking stopped");
 }
 
-/* ===== EMERGENCY PHOTO ===== */
+/* ==== EMERGENCY PHOTO ==== */
 function takeEmergencyPhoto(){
-  if(!camStream) return;
-  const canvas=document.createElement("canvas");
-  canvas.width=cam.videoWidth; canvas.height=cam.videoHeight;
-  const ctx=canvas.getContext("2d");
-  ctx.drawImage(cam,0,0,canvas.width,canvas.height);
-  canvas.toBlob(blob=>{
-    const link=document.createElement("a");
-    link.href=URL.createObjectURL(blob);
-    link.download=`emergency_${Date.now()}.png`;
-    link.click();
-    speak("Emergency photo saved");
-  });
+  if(!camStream){speak("Camera not active"); return;}
+  const snap=document.createElement("canvas");
+  snap.width=cam.videoWidth; snap.height=cam.videoHeight;
+  snap.getContext("2d").drawImage(cam,0,0,snap.width,snap.height);
+  snap.toBlob(savePhoto);
 }
 
-/* ===== COMMAND HANDLER ===== */
-function handle(cmd){
-  heard.innerText=cmd;
+/* ==== FACE RECOGNITION ==== */
+let labeledFaceDescriptors=null;
 
-  if(!trustedFaceDetected){speak("Face not recognized. Commands blocked."); return;}
-
-  if(cmd.includes("emergency") || cmd.includes("help me")){
-    takeEmergencyPhoto();
-    speak("Emergency triggered. Photo captured.");
-    return;
-  }
-
-  const commands={
-    "start camera": openCamera,
-    "stop camera": closeCamera,
-    "start tracking": startTracking,
-    "stop tracking": stopTracking,
-    "dictation on": ()=>{dictation=true;speak("Dictation on")},
-    "dictation off": ()=>{dictation=false;speak("Dictation off")},
-    "status": ()=>speak("System running normally"),
-    "what time": ()=>speak("The time is "+new Date().toLocaleTimeString()),
-    "what date": ()=>speak("Today is "+new Date().toDateString())
-  };
-  for(let k in commands){if(cmd.includes(k)){commands[k](); return;}}
-  speak("Command unclear");
-}
-
-/* ===== VOICE RECOGNITION ===== */
-function startVoiceRecognition(){
-  if(isVoiceActive) return;
-  rec=new (window.SpeechRecognition||window.webkitSpeechRecognition)();
-  rec.continuous=true; rec.interimResults=false;
-  rec.lang=navigator.language||"en-US";
-  rec.onresult=e=>{
-    const cmd=e.results[e.results.length-1][0].transcript.toLowerCase().trim();
-    handle(cmd);
-  };
-  rec.onerror=e=>speak("Voice recognition error");
-  rec.start();
-  isVoiceActive=true;
-  speak("Voice assistant activated. Trusted face required for commands.");
-}
-
-/* ===== FACE RECOGNITION ===== */
-let trustedFaceDescriptors=null;
 async function loadFaceModels(){
-  await faceapi.nets.tinyFaceDetector.loadFromUri("https://justadomain.github.io/models");
-  await faceapi.nets.faceLandmark68Net.loadFromUri("https://justadomain.github.io/models");
-  await faceapi.nets.faceRecognitionNet.loadFromUri("https://justadomain.github.io/models");
+  const MODEL_PATH='https://justadudewhohacks.github.io/face-api.js/models';
+  await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_PATH);
+  await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_PATH);
+  await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_PATH);
   speak("Face models loaded");
-  // Load trusted faces here
-  // Example placeholder:
-  // trustedFaceDescriptors = [ new faceapi.LabeledFaceDescriptors("Honest",[descriptor]) ];
+  // TODO: Add your trusted labeled descriptors here
+  // Example:
+  // labeledFaceDescriptors = [
+  //   new faceapi.LabeledFaceDescriptors("YourName", [descriptorArray])
+  // ];
 }
-async function detectFaceLoop(){
+
+function detectFacesLoop(){
   if(!camStream) return;
   const displaySize={width:cam.videoWidth,height:cam.videoHeight};
   faceapi.matchDimensions(overlay, displaySize);
+
   setInterval(async ()=>{
     const detections=await faceapi.detectAllFaces(cam,new faceapi.TinyFaceDetectorOptions())
       .withFaceLandmarks().withFaceDescriptors();
     const ctx=overlay.getContext("2d");
     ctx.clearRect(0,0,overlay.width,overlay.height);
+
     if(detections.length>0){
-      const resizedDetections=faceapi.resizeResults(detections,displaySize);
-      faceapi.draw.drawDetections(overlay,resizedDetections);
-      faceapi.draw.drawFaceLandmarks(overlay,resizedDetections);
-      if(trustedFaceDescriptors){
-        const faceMatcher=new faceapi.FaceMatcher(trustedFaceDescriptors,0.5);
-        detections.forEach(d=>{
-          const bestMatch=faceMatcher.findBestMatch(d.descriptor);
-          if(bestMatch.label!=="unknown"){trustedFaceDetected=true; speak("Trusted face detected"); }
-        });
-      } else {trustedFaceDetected=true;} // For testing without registered faces
-    } else {trustedFaceDetected=false;}
-  },200);
+      const resized=faceapi.resizeResults(detections,displaySize);
+      faceapi.draw.drawDetections(overlay,resized);
+      faceapi.draw.drawFaceLandmarks(overlay,resized);
+      trustedFacePresent=true; // for demo; use matcher below when labels added
+    } else {trustedFacePresent=false;}
+  },300);
 }
 
-/* ===== START BUTTON ===== */
-startBtn.addEventListener("click",async ()=>{
-  try{await navigator.mediaDevices.getUserMedia({audio:true,video:true});}catch(e){speak("Camera/Mic permission denied"); return;}
+/* ==== VOICE COMMANDS ==== */
+function handleCommand(cmd){
+  heardEl.innerText=cmd;
+
+  if(!trustedFacePresent){
+    speak("No trusted face detected — commands blocked.");
+    return;
+  }
+
+  cmd=cmd.toLowerCase();
+  if(cmd.includes("emergency")){
+    takeEmergencyPhoto();
+    return;
+  }
+
+  const acts={
+    "start camera": openCamera,
+    "stop camera": closeCamera,
+    "start tracking": startTracking,
+    "stop tracking": stopTracking,
+    "what time": ()=>speak("Time is "+new Date().toLocaleTimeString()),
+    "what date": ()=>speak("Date is "+new Date().toDateString()),
+    "battery status": ()=>{
+      navigator.getBattery().then(b=>{
+        speak("Battery at "+Math.round(b.level*100)+" percent");
+      });
+    },
+    "screenshot": ()=>{
+      html2canvas(document.body).then(canvas=>{
+        canvas.toBlob(savePhoto);
+      });
+    }
+  };
+
+  for(let k in acts){
+    if(cmd.includes(k)){ acts[k](); return; }
+  }
+  speak("Command not recognized");
+}
+
+function startVoiceRecognition(){
+  if(voiceActive) return;
+  rec=new (window.SpeechRecognition||window.webkitSpeechRecognition)();
+  rec.continuous=true;
+  rec.interimResults=false;
+  rec.lang=navigator.language||"en-US";
+
+  rec.onresult=e=>{
+    const spoken=e.results[e.results.length-1][0].transcript;
+    handleCommand(spoken);
+  };
+  rec.onerror=()=>speak("Voice recognition error");
+  rec.start();
+  voiceActive=true;
+  speak("Voice assistant activated. Face must remain visible.");
+}
+
+/* ==== START BUTTON ==== */
+document.getElementById("startBtn").addEventListener("click", async ()=>{
+  try{await navigator.mediaDevices.getUserMedia({audio:true,video:true});}
+  catch{ speak("Camera/Mic permission needed"); return; }
+
   startVoiceRecognition();
   await loadFaceModels();
   openCamera();
-  navigator.geolocation.getCurrentPosition(pos=>initMap(pos.coords.latitude,pos.coords.longitude));
+  navigator.geolocation.getCurrentPosition(pos=>{
+    initMap(pos.coords.latitude,pos.coords.longitude);
+  });
 });
 </script>
 
