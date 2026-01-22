@@ -2,179 +2,164 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Speak & Win – Adult English Mastery</title>
+<title>SpeakFlow Pro</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <style>
 body {
-  font-family: Arial, sans-serif;
-  background: #0f172a;
-  color: #fff;
-  margin: 0;
-  padding: 20px;
-  text-align: center;
+  background:#020617;
+  color:#e5e7eb;
+  font-family:Arial, sans-serif;
+  margin:0;
+  padding:20px;
 }
-h1 { color: #38bdf8; }
-#card {
-  background: #1e293b;
-  padding: 20px;
-  border-radius: 12px;
-  max-width: 700px;
-  margin: auto;
+h1 { color:#22d3ee; text-align:center; }
+#game {
+  max-width:800px;
+  margin:auto;
+  background:#0f172a;
+  padding:20px;
+  border-radius:12px;
 }
-#sentence {
-  font-size: 22px;
-  margin: 20px 0;
+#text {
+  font-size:22px;
+  margin:20px 0;
+  min-height:80px;
 }
-input {
-  width: 100%;
-  padding: 12px;
-  font-size: 18px;
-  margin-top: 10px;
+button,input {
+  padding:12px;
+  margin:5px 0;
+  width:100%;
+  font-size:16px;
+  border-radius:8px;
+  border:none;
 }
 button {
-  padding: 12px 20px;
-  margin: 10px;
-  font-size: 16px;
-  background: #38bdf8;
-  border: none;
-  border-radius: 8px;
-  cursor: pointer;
+  background:#22d3ee;
+  cursor:pointer;
 }
-button:hover { background: #0ea5e9; }
-#status { margin-top: 10px; font-weight: bold; }
-#stats { margin-top: 15px; }
-.fade {
-  animation: fadeOut 0.6s forwards;
+button:hover { background:#06b6d4; }
+#stats {
+  display:flex;
+  justify-content:space-between;
+  margin-top:10px;
+  font-weight:bold;
 }
-@keyframes fadeOut {
-  to { opacity: 0; transform: scale(0.9); }
-}
+.bad { color:#f87171; }
+.good { color:#4ade80; }
+.fade { animation: fade 0.6s forwards; }
+@keyframes fade { to { opacity:0; } }
 </style>
 </head>
 <body>
 
-<h1>🎤 Speak & Win</h1>
-<p>Adult English Reading, Speaking & Selling Skills</p>
+<h1>🎤 SpeakFlow Pro</h1>
 
-<div id="card">
-  <div id="level">Level 1 – Beginner</div>
-  <div id="sentence"></div>
+<div id="game">
+  <div id="tier">Tier: Foundation</div>
+  <div id="level">Level 1</div>
 
-  <input id="textInput" placeholder="Type the sentence here (optional)">
-  
-  <div>
-    <button onclick="startListening()">🎤 Speak</button>
-    <button onclick="speakSentence()">🔊 Listen</button>
-    <button onclick="checkTyping()">✅ Submit</button>
+  <div id="text"></div>
+
+  <input id="input" placeholder="Type here if needed">
+
+  <button onclick="listen()">🎤 Speak</button>
+  <button onclick="checkTyping()">✅ Submit</button>
+  <button onclick="playAudio()">🔊 Listen</button>
+
+  <div id="feedback"></div>
+
+  <div id="stats">
+    <span>Score: <span id="score">0</span></span>
+    <span>Lives: <span id="lives">3</span></span>
+    <span>Streak: <span id="streak">0</span></span>
   </div>
-
-  <div id="status"></div>
-  <div id="stats">Score: 0 | Lives: 3</div>
 </div>
 
 <script>
-const levels = [
-  { level: "Beginner", text: "Success begins with discipline." },
-  { level: "Beginner", text: "Confidence grows with practice." },
-  { level: "Beginner", text: "Clear speech creates understanding." },
-
-  { level: "Intermediate", text: "Effective communication builds strong relationships." },
-  { level: "Intermediate", text: "Listening is more powerful than speaking." },
-  { level: "Intermediate", text: "Professional language creates credibility." },
-
-  { level: "Advanced", text: "This solution delivers measurable value to your business." },
-  { level: "Advanced", text: "Strong messaging influences customer decisions." },
-  { level: "Advanced", text: "People buy confidence before they buy products." },
-
-  { level: "Senior", text: "Strategic positioning determines long-term competitive advantage." },
-  { level: "Senior", text: "Leadership communication drives organizational success." },
-  { level: "Senior", text: "Negotiation is the art of mutual value creation." }
+const content = [
+  ["Success begins with disciplined action.","Confidence grows through repetition."],
+  ["Clear communication builds trust.","Listening improves influence."],
+  ["Professional language reflects competence.","Your voice sells your ideas."],
+  ["This product solves real customer problems.","Value creates loyalty."],
+  ["Strategic communication drives leadership.","Negotiation requires clarity and control."]
 ];
 
-let index = 0;
-let score = 0;
-let lives = 3;
+let tier=0, level=0, index=0;
+let score=0, lives=3, streak=0;
 
-const sentenceEl = document.getElementById("sentence");
-const levelEl = document.getElementById("level");
-const statusEl = document.getElementById("status");
-const statsEl = document.getElementById("stats");
-const inputEl = document.getElementById("textInput");
+const textEl=document.getElementById("text");
+const tierEl=document.getElementById("tier");
+const levelEl=document.getElementById("level");
+const feedback=document.getElementById("feedback");
 
-function loadSentence() {
-  if (index >= levels.length) {
-    sentenceEl.innerHTML = "🏆 YOU WIN! You completed all levels.";
+function load() {
+  if (tier >= content.length) {
+    textEl.innerHTML="🏆 MASTER LEVEL ACHIEVED";
     return;
   }
-  sentenceEl.classList.remove("fade");
-  sentenceEl.innerText = levels[index].text;
-  levelEl.innerText = `Level ${index+1} – ${levels[index].level}`;
-  inputEl.value = "";
+  textEl.classList.remove("fade");
+  textEl.innerText = content[tier][index];
+  tierEl.innerText="Tier: "+["Foundation","Fluency","Communication","Marketing","Executive"][tier];
+  levelEl.innerText="Level "+(tier*10+index+1);
 }
 
-loadSentence();
+load();
 
-function normalize(text) {
-  return text.toLowerCase().replace(/[^a-z ]/g, "").trim();
-}
+function normalize(t){return t.toLowerCase().replace(/[^a-z ]/g,"").trim();}
 
-function success() {
-  score += 10;
-  sentenceEl.classList.add("fade");
-  setTimeout(() => {
+function success(){
+  score+=10;
+  streak++;
+  textEl.classList.add("fade");
+  setTimeout(()=>{
     index++;
-    loadSentence();
-  }, 600);
+    if(index>=content[tier].length){ tier++; index=0; }
+    load();
+  },500);
 }
 
-function fail() {
+function fail(){
   lives--;
-  if (lives <= 0) {
-    sentenceEl.innerHTML = "❌ GAME OVER – Try Again";
-    return;
+  streak=0;
+  feedback.innerHTML="<span class='bad'>Incorrect</span>";
+  if(lives<=0){
+    textEl.innerHTML="❌ GAME OVER – Restart to improve";
   }
 }
 
-function updateStats() {
-  statsEl.innerText = `Score: ${score} | Lives: ${lives}`;
+function update(){
+  document.getElementById("score").innerText=score;
+  document.getElementById("lives").innerText=lives;
+  document.getElementById("streak").innerText=streak;
 }
 
-function checkTyping() {
-  if (normalize(inputEl.value) === normalize(levels[index].text)) {
-    statusEl.innerText = "✅ Correct!";
+function checkTyping(){
+  const val=document.getElementById("input").value;
+  if(normalize(val)===normalize(textEl.innerText)){
+    feedback.innerHTML="<span class='good'>Excellent</span>";
     success();
-  } else {
-    statusEl.innerText = "❌ Incorrect";
-    fail();
-  }
-  updateStats();
+  } else fail();
+  update();
 }
 
-function speakSentence() {
-  const utter = new SpeechSynthesisUtterance(levels[index].text);
-  speechSynthesis.speak(utter);
+function playAudio(){
+  const u=new SpeechSynthesisUtterance(textEl.innerText);
+  speechSynthesis.speak(u);
 }
 
-function startListening() {
-  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-  if (!SpeechRecognition) {
-    alert("Speech Recognition not supported");
-    return;
-  }
-  const recognition = new SpeechRecognition();
-  recognition.lang = "en-US";
-  recognition.start();
-
-  recognition.onresult = (e) => {
-    const spoken = e.results[0][0].transcript;
-    if (normalize(spoken) === normalize(levels[index].text)) {
-      statusEl.innerText = "🎉 Perfect pronunciation!";
+function listen(){
+  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+  if(!SR){ alert("Speech not supported"); return;}
+  const r=new SR();
+  r.lang="en-US";
+  r.start();
+  r.onresult=e=>{
+    const said=e.results[0][0].transcript;
+    if(normalize(said)===normalize(textEl.innerText)){
+      feedback.innerHTML="<span class='good'>Perfect pronunciation</span>";
       success();
-    } else {
-      statusEl.innerText = "❌ Try again";
-      fail();
-    }
-    updateStats();
+    } else fail();
+    update();
   };
 }
 </script>
