@@ -2,28 +2,27 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Voice Command System</title>
+<title>Smart Voice Control System</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <style>
 body{
   margin:0;
   font-family:Arial,Helvetica,sans-serif;
-  background:#0f172a;
+  background:#020617;
   color:#fff;
-  text-align:center;
 }
 header{
-  padding:15px;
   background:#020617;
+  padding:15px;
+  text-align:center;
   font-size:18px;
+  border-bottom:1px solid #1e293b;
 }
-.container{
-  padding:20px;
-}
+.container{padding:15px}
 button{
   width:100%;
-  padding:15px;
-  margin-top:10px;
+  padding:14px;
+  margin-top:8px;
   font-size:16px;
   font-weight:bold;
   border:none;
@@ -33,79 +32,128 @@ button{
 .stop{background:#ef4444;color:#fff}
 .card{
   background:#020617;
-  padding:15px;
+  border:1px solid #1e293b;
+  padding:12px;
   border-radius:10px;
-  margin-top:15px;
+  margin-top:12px;
 }
 .log{
   background:#000;
   padding:10px;
   border-radius:6px;
-  margin-top:10px;
-  min-height:80px;
   font-size:14px;
-  text-align:left;
+  min-height:60px;
+}
+video{
+  width:100%;
+  border-radius:10px;
+  margin-top:10px;
+  display:none;
 }
 </style>
 </head>
 <body>
 
-<header>🎙 Smart Voice Command System</header>
+<header>🎙📍🎥 Smart Voice Control</header>
 
 <div class="container">
 
-<button class="start" onclick="startListening()">▶ Start Listening</button>
-<button class="stop" onclick="stopListening()">⛔ Stop</button>
+<button class="start" onclick="startListening()">▶ Start Voice Control</button>
+<button class="stop" onclick="stopListening()">⛔ Stop Voice Control</button>
 
 <div class="card">
-  <h3>Heard Command</h3>
+  <b>Heard Command</b>
   <div id="heard" class="log">Waiting…</div>
 </div>
 
 <div class="card">
-  <h3>System Response</h3>
+  <b>System Response</b>
   <div id="response" class="log">---</div>
+</div>
+
+<div class="card">
+  <b>📍 Live Location</b>
+  <div id="location" class="log">Location inactive</div>
+</div>
+
+<div class="card">
+  <b>🎥 Camera</b>
+  <video id="camera" autoplay playsinline></video>
 </div>
 
 </div>
 
 <script>
+/* ---------- VOICE SETUP ---------- */
 const SpeechRecognition =
   window.SpeechRecognition || window.webkitSpeechRecognition;
-
 const recognition = new SpeechRecognition();
-recognition.lang = "en-US";
-recognition.continuous = true;
-recognition.interimResults = false;
+recognition.lang="en-US";
+recognition.continuous=true;
+recognition.interimResults=false;
 
 function speak(text){
-  let msg = new SpeechSynthesisUtterance(text);
+  speechSynthesis.cancel();
+  let msg=new SpeechSynthesisUtterance(text);
   speechSynthesis.speak(msg);
-  response.innerText = text;
+  response.innerText=text;
 }
 
-recognition.onresult = e => {
-  let cmd = e.results[e.results.length-1][0].transcript
-    .toLowerCase().trim();
-
-  heard.innerText = cmd;
+recognition.onresult=e=>{
+  let cmd=e.results[e.results.length-1][0]
+    .transcript.toLowerCase().trim();
+  heard.innerText=cmd;
   handleCommand(cmd);
-};
-
-recognition.onerror = e => {
-  speak("Voice error, please try again");
 };
 
 function startListening(){
   recognition.start();
   speak("Voice control activated");
 }
-
 function stopListening(){
   recognition.stop();
   speak("Voice control stopped");
 }
 
+/* ---------- LOCATION ---------- */
+let watchId=null;
+function startTracking(){
+  if(watchId) return;
+  watchId=navigator.geolocation.watchPosition(pos=>{
+    location.innerHTML=
+      "Latitude: "+pos.coords.latitude+"<br>"+
+      "Longitude: "+pos.coords.longitude+"<br>"+
+      "Accuracy: "+pos.coords.accuracy+" meters";
+  });
+  speak("Live location tracking started");
+}
+function stopTracking(){
+  navigator.geolocation.clearWatch(watchId);
+  watchId=null;
+  location.innerText="Location stopped";
+  speak("Location tracking stopped");
+}
+
+/* ---------- CAMERA ---------- */
+let camStream=null;
+async function openCamera(){
+  if(camStream) return;
+  camStream=await navigator.mediaDevices.getUserMedia({
+    video:{facingMode:"user"},audio:false
+  });
+  camera.srcObject=camStream;
+  camera.style.display="block";
+  speak("Camera opened");
+}
+function closeCamera(){
+  if(!camStream) return;
+  camStream.getTracks().forEach(t=>t.stop());
+  camStream=null;
+  camera.style.display="none";
+  speak("Camera closed");
+}
+
+/* ---------- COMMAND HANDLER ---------- */
 function handleCommand(cmd){
 
   if(cmd.includes("hello")){
@@ -113,17 +161,27 @@ function handleCommand(cmd){
   }
 
   else if(cmd.includes("what time")){
-    let time = new Date().toLocaleTimeString();
-    speak("The time is " + time);
-  }
-
-  else if(cmd.includes("open camera")){
-    speak("Opening camera");
-    window.location.href="camera.html"; // optional
+    speak("The time is "+new Date().toLocaleTimeString());
   }
 
   else if(cmd.includes("start tracking")){
-    speak("Tracking started");
+    startTracking();
+  }
+
+  else if(cmd.includes("stop tracking")){
+    stopTracking();
+  }
+
+  else if(cmd.includes("show my location")){
+    startTracking();
+  }
+
+  else if(cmd.includes("open camera")){
+    openCamera();
+  }
+
+  else if(cmd.includes("close camera")){
+    closeCamera();
   }
 
   else if(cmd.includes("stop listening")){
@@ -131,7 +189,9 @@ function handleCommand(cmd){
   }
 
   else if(cmd.includes("help")){
-    speak("You can say open camera, start tracking, or ask the time");
+    speak(
+      "You can say start tracking, open camera, what time is it, or stop listening"
+    );
   }
 
   else{
