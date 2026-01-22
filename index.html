@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Smart Voice Control System</title>
+<title>Advanced Voice Control</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <style>
 body{
@@ -12,7 +12,6 @@ body{
   color:#fff;
 }
 header{
-  background:#020617;
   padding:15px;
   text-align:center;
   font-size:18px;
@@ -47,94 +46,82 @@ button{
 video{
   width:100%;
   border-radius:10px;
-  margin-top:10px;
   display:none;
 }
 </style>
 </head>
 <body>
 
-<header>🎙📍🎥 Smart Voice Control</header>
+<header>🎙 Advanced Smart Voice System</header>
 
 <div class="container">
-
 <button class="start" onclick="startListening()">▶ Start Voice Control</button>
 <button class="stop" onclick="stopListening()">⛔ Stop Voice Control</button>
 
 <div class="card">
-  <b>Heard Command</b>
-  <div id="heard" class="log">Waiting…</div>
+<b>Heard</b>
+<div id="heard" class="log">Waiting…</div>
 </div>
 
 <div class="card">
-  <b>System Response</b>
-  <div id="response" class="log">---</div>
+<b>Response</b>
+<div id="response" class="log">---</div>
 </div>
 
 <div class="card">
-  <b>📍 Live Location</b>
-  <div id="location" class="log">Location inactive</div>
+<b>📍 Location</b>
+<div id="location" class="log">Inactive</div>
 </div>
 
 <div class="card">
-  <b>🎥 Camera</b>
-  <video id="camera" autoplay playsinline></video>
+<b>🎥 Camera</b>
+<video id="camera" autoplay playsinline></video>
 </div>
-
 </div>
 
 <script>
-/* ---------- VOICE SETUP ---------- */
+/* ========= VOICE ENGINE ========= */
 const SpeechRecognition =
   window.SpeechRecognition || window.webkitSpeechRecognition;
-const recognition = new SpeechRecognition();
-recognition.lang="en-US";
-recognition.continuous=true;
-recognition.interimResults=false;
 
+const recognition = new SpeechRecognition();
+recognition.continuous = true;
+recognition.interimResults = false;
+recognition.lang = navigator.language || "en-US";
+
+/* ========= SPEECH OUTPUT ========= */
+let muted=false;
 function speak(text){
+  if(muted) return;
   speechSynthesis.cancel();
   let msg=new SpeechSynthesisUtterance(text);
+  msg.rate=1;
+  msg.pitch=1;
+  msg.lang=recognition.lang;
   speechSynthesis.speak(msg);
   response.innerText=text;
 }
 
-recognition.onresult=e=>{
-  let cmd=e.results[e.results.length-1][0]
-    .transcript.toLowerCase().trim();
-  heard.innerText=cmd;
-  handleCommand(cmd);
-};
-
-function startListening(){
-  recognition.start();
-  speak("Voice control activated");
-}
-function stopListening(){
-  recognition.stop();
-  speak("Voice control stopped");
-}
-
-/* ---------- LOCATION ---------- */
+/* ========= LOCATION ========= */
 let watchId=null;
 function startTracking(){
   if(watchId) return;
   watchId=navigator.geolocation.watchPosition(pos=>{
     location.innerHTML=
-      "Latitude: "+pos.coords.latitude+"<br>"+
-      "Longitude: "+pos.coords.longitude+"<br>"+
-      "Accuracy: "+pos.coords.accuracy+" meters";
+      `Lat: ${pos.coords.latitude}<br>
+       Lng: ${pos.coords.longitude}<br>
+       Accuracy: ${pos.coords.accuracy}m`;
   });
-  speak("Live location tracking started");
+  speak("Location tracking started");
 }
 function stopTracking(){
   navigator.geolocation.clearWatch(watchId);
   watchId=null;
-  location.innerText="Location stopped";
+  location.innerText="Stopped";
   speak("Location tracking stopped");
 }
 
-/* ---------- CAMERA ---------- */
+/* ========= CAMERA ========= */
 let camStream=null;
 async function openCamera(){
   if(camStream) return;
@@ -143,60 +130,87 @@ async function openCamera(){
   });
   camera.srcObject=camStream;
   camera.style.display="block";
-  speak("Camera opened");
+  speak("Camera turned on");
 }
 function closeCamera(){
   if(!camStream) return;
   camStream.getTracks().forEach(t=>t.stop());
   camStream=null;
   camera.style.display="none";
-  speak("Camera closed");
+  speak("Camera turned off");
 }
 
-/* ---------- COMMAND HANDLER ---------- */
+/* ========= SMART INTENT MATCHING ========= */
+function has(words,cmd){
+  return words.some(w=>cmd.includes(w));
+}
+
 function handleCommand(cmd){
+  heard.innerText=cmd;
 
-  if(cmd.includes("hello")){
-    speak("Hello, how can I help you?");
-  }
-
-  else if(cmd.includes("what time")){
-    speak("The time is "+new Date().toLocaleTimeString());
-  }
-
-  else if(cmd.includes("start tracking")){
+  /* LOCATION */
+  if(has(["track","location","position","where"],cmd) && has(["start","show","find","me"],cmd)){
     startTracking();
   }
-
-  else if(cmd.includes("stop tracking")){
+  else if(has(["stop","end"],cmd) && has(["track","location"],cmd)){
     stopTracking();
   }
 
-  else if(cmd.includes("show my location")){
-    startTracking();
-  }
-
-  else if(cmd.includes("open camera")){
+  /* CAMERA */
+  else if(has(["open","start","turn"],cmd) && has(["camera"],cmd)){
     openCamera();
   }
-
-  else if(cmd.includes("close camera")){
+  else if(has(["close","stop","off"],cmd) && has(["camera"],cmd)){
     closeCamera();
   }
 
-  else if(cmd.includes("stop listening")){
-    stopListening();
+  /* SYSTEM */
+  else if(cmd.includes("time")){
+    speak("The time is " + new Date().toLocaleTimeString());
   }
-
+  else if(cmd.includes("date")){
+    speak("Today is " + new Date().toDateString());
+  }
+  else if(cmd.includes("status")){
+    speak("System running. Voice active.");
+  }
+  else if(cmd.includes("mute")){
+    muted=true;
+    response.innerText="Muted";
+  }
+  else if(cmd.includes("unmute")){
+    muted=false;
+    speak("System unmuted");
+  }
+  else if(cmd.includes("refresh")){
+    speak("Refreshing");
+    location.reload();
+  }
   else if(cmd.includes("help")){
-    speak(
-      "You can say start tracking, open camera, what time is it, or stop listening"
-    );
+    speak("Say start tracking, open camera, what time is it, or status report");
   }
-
+  else if(cmd.includes("emergency") || cmd.includes("help me")){
+    speak("Emergency noted. Stay calm.");
+  }
   else{
-    speak("Command not recognized");
+    speak("I heard you, but command is unclear");
   }
+}
+
+/* ========= START / STOP ========= */
+recognition.onresult=e=>{
+  let cmd=e.results[e.results.length-1][0].transcript
+    .toLowerCase().trim();
+  handleCommand(cmd);
+};
+
+function startListening(){
+  recognition.start();
+  speak("Advanced voice control activated");
+}
+function stopListening(){
+  recognition.stop();
+  speak("Voice control stopped");
 }
 </script>
 
