@@ -2,22 +2,22 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Word Champion Pro MAX++ Ultimate</title>
+<title>Word Champion Pro – Beginner Friendly</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <style>
 body{margin:0;font-family:Arial,sans-serif;background:#0a0f1c;color:#e5e7eb;text-align:center;}
-h1{color:#22d3ee;margin-top:20px;}
-#game{max-width:900px;margin:auto;padding:20px;background:#1e293b;border-radius:12px;}
-#sentence{font-size:24px;min-height:100px;margin:20px 0;}
+h1,h2{color:#22d3ee;margin:20px 0;}
+.page{display:none;max-width:900px;margin:auto;padding:20px;background:#1e293b;border-radius:12px;}
 button,input{padding:12px;margin:5px 0;font-size:16px;border-radius:8px;border:none;width:100%;}
 button{background:#22d3ee;font-weight:bold;color:#000;cursor:pointer;}
 button:hover{background:#06b6d4;}
-#feedback{margin:10px;font-weight:bold;height:24px;}
-#stats{display:flex;justify-content:space-between;margin-top:10px;font-weight:bold;flex-wrap:wrap;}
+#sentence{font-size:22px;min-height:80px;margin:15px 0;}
 .word{display:inline-block;margin:2px;padding:2px;transition:0.4s;}
 .correct{color:#4ade80;}
 .wrong{color:#f87171;}
 .fade{opacity:0;transform:scale(0.9);}
+#feedback{margin:10px;font-weight:bold;height:24px;}
+#stats{display:flex;justify-content:space-between;margin-top:10px;font-weight:bold;flex-wrap:wrap;}
 .progress-bar{height:20px;width:100%;background:#334155;border-radius:10px;margin:10px 0;}
 .progress{height:100%;width:0%;background:#22d3ee;border-radius:10px;}
 .timer{font-weight:bold;margin:10px;}
@@ -25,51 +25,70 @@ button:hover{background:#06b6d4;}
 </head>
 <body>
 
-<h1>🎮 Word Champion Pro MAX++ Ultimate</h1>
-<div id="game">
-  <div id="tier"></div>
-  <div id="level"></div>
-  <div id="sentence"></div>
-  <input id="textInput" placeholder="Type here if you prefer typing">
-  <button onclick="speakMode()">🎤 Speak</button>
-  <button onclick="submitMode()">✅ Submit</button>
-  <button onclick="listenMode()">🔊 Listen</button>
-  <div class="timer">⏱ Time Left: <span id="timer">30</span>s</div>
-  <div class="progress-bar"><div class="progress" id="progress"></div></div>
-  <div id="feedback"></div>
-  <div id="stats">
-    <span>Score: <b id="score">0</b></span>
-    <span>Lives: <b id="lives">3</b></span>
-    <span>Streak: <b id="streak">0</b></span>
-    <span>Rank: <b id="rank">Beginner</b></span>
-  </div>
+<h1>🎮 Word Champion Pro</h1>
+
+<!-- MAIN MENU PAGE -->
+<div id="menu" class="page" style="display:block;">
+<h2>Main Menu</h2>
+<button onclick="startStage(0)">Start Beginner Stage</button>
+<button onclick="startStage(1)">Start Intermediate Stage</button>
+<button onclick="startStage(2)">Start Advanced Stage</button>
+<button onclick="startStage(3)">Start Expert Stage</button>
+</div>
+
+<!-- GAME PAGE -->
+<div id="game" class="page">
+<div id="tier"></div>
+<div id="level"></div>
+<div id="sentence"></div>
+<input id="textInput" placeholder="Type here if you prefer typing">
+<button onclick="speakMode()">🎤 Speak</button>
+<button onclick="submitMode()">✅ Submit</button>
+<button onclick="listenMode()">🔊 Listen</button>
+<div class="timer">⏱ Time Left: <span id="timer">30</span>s</div>
+<div class="progress-bar"><div class="progress" id="progress"></div></div>
+<div id="feedback"></div>
+<div id="stats">
+<span>Score: <b id="score">0</b></span>
+<span>Lives: <b id="lives">3</b></span>
+<span>Streak: <b id="streak">0</b></span>
+<span>Rank: <b id="rank">Beginner</b></span>
+</div>
+</div>
+
+<!-- STAGE SUMMARY PAGE -->
+<div id="summary" class="page">
+<h2>Stage Completed!</h2>
+<p id="summaryText"></p>
+<button onclick="backToMenu()">Back to Menu</button>
 </div>
 
 <script>
 // ===== CONFIG =====
-const TIERS=["Foundation","Fluency","Communication","Marketing","Executive"];
+const TIERS=["Beginner","Intermediate","Advanced","Expert"];
 const CONTENT=[
-  // Foundation
-  ["Discipline builds success.","Confidence grows with practice.","Clear reading improves understanding.","Consistency improves skill.","Start small, grow big."],
-  // Fluency
-  ["Effective communication builds trust.","Listening improves influence.","Speak clearly to be understood.","Fluency requires repetition.","Repeat daily for mastery."],
-  // Communication
-  ["Professional language builds credibility.","Strong communication earns respect.","Confidence changes outcomes.","Clear messages lead to action.","Be concise, be impactful."],
-  // Marketing
-  ["This product solves real customer problems.","People buy clarity and confidence.","Persuasion creates loyalty.","Show value, create desire.","Highlight benefits, not features."],
-  // Executive
-  ["Leadership requires clarity.","Negotiation creates advantage.","Strategy drives long-term success.","Think ahead, act decisively.","Vision inspires teams."]
+  // Beginner
+  ["Hi","Hello","I am learning","Good morning","Thank you"],
+  // Intermediate
+  ["I like reading books","Practice makes perfect","I am improving daily","Effective communication is key","Confidence grows with effort"],
+  // Advanced
+  ["Professional language builds credibility","Strong communication earns respect","Clear messages lead to action","Fluency requires practice","Persuasion creates influence"],
+  // Expert
+  ["Leadership requires clarity and decisiveness","Negotiation creates advantage","Strategy drives long-term success","Vision inspires teams","Marketing is about creating value"]
 ];
 
 // ===== STATE =====
-let state=JSON.parse(localStorage.getItem("wordChampionUltimate"))||{
-tier:0,level:0,score:0,lives:3,streak:0,dailyStreak:0
-};
+let stage=0;
+let sentenceIndex=0;
+let state={score:0,lives:3,streak:0};
 let currentSentence="";
 let timer=30;
 let timerInterval;
 
 // ===== ELEMENTS =====
+const menuPage=document.getElementById("menu");
+const gamePage=document.getElementById("game");
+const summaryPage=document.getElementById("summary");
 const sentenceEl=document.getElementById("sentence");
 const tierEl=document.getElementById("tier");
 const levelEl=document.getElementById("level");
@@ -81,32 +100,27 @@ const rankEl=document.getElementById("rank");
 const inputEl=document.getElementById("textInput");
 const timerEl=document.getElementById("timer");
 const progressEl=document.getElementById("progress");
+const summaryText=document.getElementById("summaryText");
 
 // ===== UTIL =====
 function normalize(text){return text.toLowerCase().replace(/[^a-z ]/g,"").trim();}
-function save(){localStorage.setItem("wordChampionUltimate",JSON.stringify(state));}
+function showPage(page){menuPage.style.display="none";gamePage.style.display="none";summaryPage.style.display="none";page.style.display="block";}
+function saveProgress(){localStorage.setItem("wordChampionStage"+stage,JSON.stringify(state));}
 
-// ===== RANK =====
-function getRank(){
-  if(state.score<50) return "Beginner";
-  if(state.score<150) return "Skilled";
-  if(state.score<300) return "Fluent";
-  if(state.score<500) return "Persuasive";
-  if(state.score<800) return "Professional";
-  return "Master Communicator";
+// ===== GAME FLOW =====
+function startStage(s){
+  stage=s;
+  state={score:0,lives:3,streak:0};
+  showPage(gamePage);
+  loadSentence();
 }
 
-// ===== LOAD SENTENCE =====
 function loadSentence(){
-  if(state.tier>=CONTENT.length){
-    sentenceEl.innerHTML="🏆 YOU WIN! All tiers completed.";
-    feedback.innerHTML="Amazing job!";
-    clearInterval(timerInterval);
+  if(sentenceIndex>=CONTENT[stage].length){
+    showSummary();
     return;
   }
-  const list=CONTENT[state.tier];
-  const idx=Math.floor(Math.random()*list.length);
-  currentSentence=list[idx];
+  currentSentence=CONTENT[stage][sentenceIndex];
   sentenceEl.innerHTML="";
   const words=currentSentence.split(" ");
   words.forEach(word=>{
@@ -116,21 +130,28 @@ function loadSentence(){
     sentenceEl.appendChild(span);
     sentenceEl.appendChild(document.createTextNode(" "));
   });
-  tierEl.innerText="Tier: "+TIERS[state.tier];
-  levelEl.innerText="Level: "+(state.level+1);
+  tierEl.innerText="Stage: "+TIERS[stage];
+  levelEl.innerText="Sentence: "+(sentenceIndex+1)+"/"+CONTENT[stage].length;
   inputEl.value="";
   feedback.innerHTML="";
   startTimer();
   updateStats();
 }
 
-// ===== STATS =====
+// ===== STATS & RANK =====
 function updateStats(){
   scoreEl.innerText=state.score;
   livesEl.innerText=state.lives;
   streakEl.innerText=state.streak;
   rankEl.innerText=getRank();
-  progressEl.style.width=Math.min((state.score/800)*100,100)+"%";
+  progressEl.style.width=Math.min((state.score/(CONTENT[stage].length*10))*100,100)+"%";
+}
+function getRank(){
+  if(state.score<10) return "Beginner";
+  if(state.score<30) return "Skilled";
+  if(state.score<50) return "Fluent";
+  if(state.score<70) return "Persuasive";
+  return "Master Communicator";
 }
 
 // ===== TIMER =====
@@ -148,19 +169,17 @@ function startTimer(){
 // ===== SUCCESS / FAIL =====
 function animateWords(){
   const words=document.querySelectorAll("#sentence .word");
-  words.forEach((w,i)=>{setTimeout(()=>{w.classList.add("fade");},i*100);});
+  words.forEach((w,i)=>{setTimeout(()=>{w.classList.add("fade");},i*120);});
 }
 
 function success(){
   clearInterval(timerInterval);
   state.score+=10;
   state.streak++;
-  state.dailyStreak++;
-  state.level++;
-  if(state.level%5===0 && state.tier<TIERS.length-1) state.tier++;
   feedback.innerHTML="✅ Correct!";
   animateWords();
-  save();
+  saveProgress();
+  sentenceIndex++;
   setTimeout(loadSentence,600);
 }
 
@@ -169,26 +188,27 @@ function fail(){
   state.lives--;
   state.streak=0;
   feedback.innerHTML="❌ Wrong or Time Up!";
-  save();
   if(state.lives<=0){
     sentenceEl.innerHTML="💀 GAME OVER! Reload to try again.";
-  } else setTimeout(loadSentence,600);
+  } else {
+    sentenceIndex++;
+    setTimeout(loadSentence,600);
+  }
+  saveProgress();
   updateStats();
 }
 
-// ===== TYPING MODE =====
+// ===== MODES =====
 function submitMode(){
   if(normalize(inputEl.value)===normalize(currentSentence)) success();
   else fail();
 }
 
-// ===== LISTEN MODE =====
 function listenMode(){
   const utter=new SpeechSynthesisUtterance(currentSentence);
   speechSynthesis.speak(utter);
 }
 
-// ===== SPEAK MODE =====
 function speakMode(){
   const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
   if(!SR){alert("Speech Recognition not supported"); return;}
@@ -201,9 +221,13 @@ function speakMode(){
   };
 }
 
-// ===== INITIAL LOAD =====
-loadSentence();
-updateStats();
+// ===== STAGE SUMMARY =====
+function showSummary(){
+  showPage(summaryPage);
+  summaryText.innerHTML=`You completed the ${TIERS[stage]} stage!<br>Score: ${state.score}<br>Streak: ${state.streak}`;
+}
+
+function backToMenu(){sentenceIndex=0;showPage(menuPage);}
 </script>
 
 </body>
