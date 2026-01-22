@@ -2,142 +2,225 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Read & Pronounce Game</title>
+<title>Read Fast Pro</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+
 <style>
-body{margin:0;font-family:Arial,sans-serif;background:#1a1a2e;color:#fff;text-align:center}
-header{padding:15px;font-size:20px;background:#162447}
-.container{padding:10px;max-width:600px;margin:auto}
-.word{font-size:32px;margin:10px;padding:10px;border:2px solid #e43f5a;border-radius:8px;display:inline-block;cursor:pointer;transition:0.3s}
-.word.correct{background:#22c55e;transform:scale(1.1);}
-.word.wrong{background:#e43f5a;transform:scale(0.9);}
-input,button{padding:12px;font-size:16px;margin:8px;border-radius:8px;border:none}
-button{background:#162447;color:#fff;font-weight:bold;cursor:pointer}
-.stats{margin:10px;font-size:18px}
-#message{font-size:20px;margin-top:15px;color:#ffd60a}
+body{
+  margin:0;
+  font-family:Arial,Helvetica,sans-serif;
+  background:linear-gradient(135deg,#0f2027,#203a43,#2c5364);
+  color:#fff;
+  text-align:center;
+}
+header{
+  padding:15px;
+  font-size:22px;
+  font-weight:bold;
+}
+.container{
+  max-width:600px;
+  margin:auto;
+  padding:10px;
+}
+.word{
+  font-size:36px;
+  margin:20px auto;
+  padding:15px 25px;
+  border-radius:12px;
+  background:#111827;
+  display:inline-block;
+  animation:pop 0.3s ease;
+}
+@keyframes pop{from{transform:scale(0.8)}to{transform:scale(1)}}
+.correct{background:#16a34a;}
+.wrong{background:#dc2626;animation:shake 0.3s;}
+@keyframes shake{0%{transform:translateX(0)}25%{transform:translateX(-5px)}50%{transform:translateX(5px)}100%{transform:translateX(0)}}
+
+input,button{
+  padding:12px;
+  font-size:16px;
+  border-radius:8px;
+  border:none;
+  margin:8px;
+}
+button{
+  background:#2563eb;
+  color:white;
+  font-weight:bold;
+  cursor:pointer;
+}
+.stats{
+  font-size:18px;
+  margin:10px;
+}
+.progress{
+  height:10px;
+  background:#374151;
+  border-radius:10px;
+  overflow:hidden;
+  margin:15px;
+}
+.progress-bar{
+  height:100%;
+  width:100%;
+  background:#22c55e;
+  transition:width 0.2s linear;
+}
+#message{
+  font-size:22px;
+  margin-top:15px;
+  font-weight:bold;
+}
+.hidden{display:none;}
 </style>
 </head>
+
 <body>
 
-<header>📚 Read & Pronounce Game</header>
+<header>📚 READ FAST PRO</header>
 
 <div class="container">
+
 <div class="stats">
-Score: <span id="score">0</span> | Lives: <span id="lives">3</span> | Time: <span id="timer">60</span>s
+Level: <span id="level">1</span> |
+Score: <span id="score">0</span> |
+Lives: <span id="lives">3</span> |
+Streak: <span id="streak">0</span>
 </div>
 
-<div id="wordsContainer"></div>
+<div class="progress">
+  <div class="progress-bar" id="progressBar"></div>
+</div>
 
-<input type="text" id="spellInput" placeholder="Type the word here">
-<button id="checkBtn">Check Spelling</button>
-<button id="startBtn">Start Game</button>
+<div id="wordBox" class="word hidden"></div>
+
+<input id="input" placeholder="Type the word here">
+<br>
+<button onclick="checkTyped()">Submit</button>
+<button onclick="startGame()">Start Game</button>
 
 <div id="message"></div>
+
 </div>
 
 <script>
-/* ===== Word List ===== */
-const words = ["apple","banana","orange","grape","strawberry","elephant","giraffe","zebra","lion","tiger","kangaroo","monkey","butterfly","caterpillar","dinosaur","volcano","computer","keyboard","javascript","puzzle"];
+/* WORD LEVELS */
+const levels = [
+  ["cat","dog","sun","book","pen"],
+  ["apple","banana","orange","table","window"],
+  ["computer","elephant","pronounce","language","education"],
+  ["responsibility","communication","pronunciation","understanding"]
+];
 
-let activeWords=[], score=0, lives=3, timer=60;
-let gameInterval, countdownInterval;
-const wordsContainer=document.getElementById("wordsContainer");
-const scoreEl=document.getElementById("score");
-const livesEl=document.getElementById("lives");
-const timerEl=document.getElementById("timer");
-const messageEl=document.getElementById("message");
-const spellInput=document.getElementById("spellInput");
+let level=0, score=0, lives=3, streak=0;
+let currentWord="";
+let timeLeft=100;
+let timerInterval;
 
-/* ===== Game Functions ===== */
+/* ELEMENTS */
+const wordBox=document.getElementById("wordBox");
+const input=document.getElementById("input");
+const msg=document.getElementById("message");
+const progressBar=document.getElementById("progressBar");
+
 function startGame(){
-  score=0; lives=3; timer=60;
-  scoreEl.innerText=score;
-  livesEl.innerText=lives;
-  timerEl.innerText=timer;
-  messageEl.innerText="";
-  spellInput.value="";
-  activeWords=[...words].sort(()=>0.5-Math.random()).slice(0,7); // pick 7 words
-  renderWords();
+  level=0; score=0; lives=3; streak=0;
+  updateStats();
+  msg.innerText="";
+  nextWord();
+  startVoice();
+}
+
+function nextWord(){
+  clearInterval(timerInterval);
+  timeLeft=100;
+  currentWord=levels[level][Math.floor(Math.random()*levels[level].length)];
+  wordBox.innerText=currentWord;
+  wordBox.className="word";
+  wordBox.classList.remove("hidden");
+  input.value="";
   startTimer();
-  startVoiceRecognition();
 }
 
-function renderWords(){
-  wordsContainer.innerHTML="";
-  activeWords.forEach(w=>{
-    const div=document.createElement("div");
-    div.classList.add("word");
-    div.innerText=w;
-    wordsContainer.appendChild(div);
-  });
-}
-
-/* ===== Timer ===== */
 function startTimer(){
-  clearInterval(countdownInterval);
-  countdownInterval=setInterval(()=>{
-    timer--;
-    timerEl.innerText=timer;
-    if(timer<=0){endGame(false);}
-  },1000);
+  timerInterval=setInterval(()=>{
+    timeLeft--;
+    progressBar.style.width=timeLeft+"%";
+    if(timeLeft<=0){
+      loseLife();
+    }
+  },100);
 }
 
-/* ===== Check Word ===== */
-function checkWord(input){
-  const index=activeWords.findIndex(w=>w.toLowerCase()===input.toLowerCase());
-  if(index>=0){
-    const div=wordsContainer.children[index];
-    div.classList.add("correct");
-    setTimeout(()=>{div.remove();},300);
-    score++;
-    scoreEl.innerText=score;
-    activeWords.splice(index,1);
-    spellInput.value="";
-    if(activeWords.length===0){endGame(true);}
-  } else {
-    lives--;
-    livesEl.innerText=lives;
-    messageEl.innerText="Wrong! Try again.";
-    if(lives<=0){endGame(false);}
+function checkAnswer(answer){
+  if(answer.toLowerCase()===currentWord.toLowerCase()){
+    score+=10;
+    streak++;
+    wordBox.classList.add("correct");
+    speak("Correct!");
+    if(streak%5===0 && level<levels.length-1){level++;}
+    setTimeout(nextWord,500);
+  }else{
+    wordBox.classList.add("wrong");
+    speak("Try again");
+    loseLife();
+  }
+  updateStats();
+}
+
+function checkTyped(){
+  if(input.value.trim()!==""){
+    checkAnswer(input.value.trim());
   }
 }
 
-/* ===== End Game ===== */
-function endGame(win){
-  clearInterval(countdownInterval);
-  stopVoiceRecognition();
-  messageEl.innerText=win?"🎉 You Win!":"💀 Game Over!";
-  wordsContainer.innerHTML="";
+function loseLife(){
+  lives--;
+  streak=0;
+  updateStats();
+  if(lives<=0){
+    gameOver();
+  }else{
+    nextWord();
+  }
 }
 
-/* ===== Voice Recognition ===== */
-let rec=null;
-function startVoiceRecognition(){
-  if(!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)){
-    console.log("Voice recognition not supported");
-    return;
-  }
-  rec=new (window.SpeechRecognition || window.webkitSpeechRecognition)();
-  rec.continuous=true;
-  rec.interimResults=false;
-  rec.lang="en-US";
-  rec.onresult=e=>{
-    const spoken=e.results[e.results.length-1][0].transcript.trim().toLowerCase();
-    checkWord(spoken);
+function gameOver(){
+  clearInterval(timerInterval);
+  stopVoice();
+  wordBox.classList.add("hidden");
+  msg.innerText="💀 Game Over! Score: "+score;
+}
+
+function updateStats(){
+  document.getElementById("score").innerText=score;
+  document.getElementById("lives").innerText=lives;
+  document.getElementById("level").innerText=level+1;
+  document.getElementById("streak").innerText=streak;
+}
+
+/* VOICE RECOGNITION */
+let recognition;
+function startVoice(){
+  if(!('webkitSpeechRecognition'in window||'SpeechRecognition'in window))return;
+  recognition=new (window.SpeechRecognition||window.webkitSpeechRecognition)();
+  recognition.continuous=true;
+  recognition.lang="en-US";
+  recognition.onresult=e=>{
+    let spoken=e.results[e.results.length-1][0].transcript.trim();
+    checkAnswer(spoken);
   };
-  rec.onerror=e=>console.log("Voice error", e);
-  rec.start();
+  recognition.start();
 }
+function stopVoice(){if(recognition)recognition.stop();}
 
-function stopVoiceRecognition(){
-  if(rec){rec.stop();}
+/* VOICE FEEDBACK */
+function speak(text){
+  let u=new SpeechSynthesisUtterance(text);
+  speechSynthesis.speak(u);
 }
-
-/* ===== Event Listeners ===== */
-document.getElementById("startBtn").addEventListener("click",startGame);
-document.getElementById("checkBtn").addEventListener("click",()=>checkWord(spellInput.value));
-spellInput.addEventListener("keyup",e=>{if(e.key==="Enter"){checkWord(spellInput.value)}});
-
 </script>
+
 </body>
 </html>
