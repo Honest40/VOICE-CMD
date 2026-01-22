@@ -1,0 +1,144 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Voice Command System</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<style>
+body{
+  margin:0;
+  font-family:Arial,Helvetica,sans-serif;
+  background:#0f172a;
+  color:#fff;
+  text-align:center;
+}
+header{
+  padding:15px;
+  background:#020617;
+  font-size:18px;
+}
+.container{
+  padding:20px;
+}
+button{
+  width:100%;
+  padding:15px;
+  margin-top:10px;
+  font-size:16px;
+  font-weight:bold;
+  border:none;
+  border-radius:8px;
+}
+.start{background:#22c55e;color:#000}
+.stop{background:#ef4444;color:#fff}
+.card{
+  background:#020617;
+  padding:15px;
+  border-radius:10px;
+  margin-top:15px;
+}
+.log{
+  background:#000;
+  padding:10px;
+  border-radius:6px;
+  margin-top:10px;
+  min-height:80px;
+  font-size:14px;
+  text-align:left;
+}
+</style>
+</head>
+<body>
+
+<header>🎙 Smart Voice Command System</header>
+
+<div class="container">
+
+<button class="start" onclick="startListening()">▶ Start Listening</button>
+<button class="stop" onclick="stopListening()">⛔ Stop</button>
+
+<div class="card">
+  <h3>Heard Command</h3>
+  <div id="heard" class="log">Waiting…</div>
+</div>
+
+<div class="card">
+  <h3>System Response</h3>
+  <div id="response" class="log">---</div>
+</div>
+
+</div>
+
+<script>
+const SpeechRecognition =
+  window.SpeechRecognition || window.webkitSpeechRecognition;
+
+const recognition = new SpeechRecognition();
+recognition.lang = "en-US";
+recognition.continuous = true;
+recognition.interimResults = false;
+
+function speak(text){
+  let msg = new SpeechSynthesisUtterance(text);
+  speechSynthesis.speak(msg);
+  response.innerText = text;
+}
+
+recognition.onresult = e => {
+  let cmd = e.results[e.results.length-1][0].transcript
+    .toLowerCase().trim();
+
+  heard.innerText = cmd;
+  handleCommand(cmd);
+};
+
+recognition.onerror = e => {
+  speak("Voice error, please try again");
+};
+
+function startListening(){
+  recognition.start();
+  speak("Voice control activated");
+}
+
+function stopListening(){
+  recognition.stop();
+  speak("Voice control stopped");
+}
+
+function handleCommand(cmd){
+
+  if(cmd.includes("hello")){
+    speak("Hello, how can I help you?");
+  }
+
+  else if(cmd.includes("what time")){
+    let time = new Date().toLocaleTimeString();
+    speak("The time is " + time);
+  }
+
+  else if(cmd.includes("open camera")){
+    speak("Opening camera");
+    window.location.href="camera.html"; // optional
+  }
+
+  else if(cmd.includes("start tracking")){
+    speak("Tracking started");
+  }
+
+  else if(cmd.includes("stop listening")){
+    stopListening();
+  }
+
+  else if(cmd.includes("help")){
+    speak("You can say open camera, start tracking, or ask the time");
+  }
+
+  else{
+    speak("Command not recognized");
+  }
+}
+</script>
+
+</body>
+</html>
