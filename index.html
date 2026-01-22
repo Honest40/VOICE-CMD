@@ -2,248 +2,142 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Android Security Assistant</title>
-<meta name="viewport" content="width=device-width, initial-scale=1">
-
-<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+<title>Read & Pronounce Game</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
 <style>
-body{margin:0;font-family:Arial;background:#0a0f23;color:#fff}
-header{padding:15px;text-align:center;font-size:18px;background:#020617}
-.container{padding:12px}
-button,input,textarea{width:100%;padding:12px;margin-top:8px;border-radius:8px;border:none;font-size:15px}
-button{background:#22c55e;color:#000;font-weight:bold}
-.card{border:1px solid #1e293b;border-radius:10px;padding:12px;margin-top:12px}
-.log{background:#000;padding:10px;border-radius:6px;min-height:60px;overflow-wrap:break-word;}
-video,canvas{width:100%;border-radius:10px;margin-top:10px;}
-#map{height:250px;border-radius:10px;margin-top:10px;}
+body{margin:0;font-family:Arial,sans-serif;background:#1a1a2e;color:#fff;text-align:center}
+header{padding:15px;font-size:20px;background:#162447}
+.container{padding:10px;max-width:600px;margin:auto}
+.word{font-size:32px;margin:10px;padding:10px;border:2px solid #e43f5a;border-radius:8px;display:inline-block;cursor:pointer;transition:0.3s}
+.word.correct{background:#22c55e;transform:scale(1.1);}
+.word.wrong{background:#e43f5a;transform:scale(0.9);}
+input,button{padding:12px;font-size:16px;margin:8px;border-radius:8px;border:none}
+button{background:#162447;color:#fff;font-weight:bold;cursor:pointer}
+.stats{margin:10px;font-size:18px}
+#message{font-size:20px;margin-top:15px;color:#ffd60a}
 </style>
 </head>
 <body>
 
-<header>🎙 Android Security Assistant</header>
+<header>📚 Read & Pronounce Game</header>
 
 <div class="container">
-<button id="startBtn">▶ Start Assistant</button>
-
-<div class="card">
-<b>Heard</b>
-<div id="heard" class="log">Waiting…</div>
+<div class="stats">
+Score: <span id="score">0</span> | Lives: <span id="lives">3</span> | Time: <span id="timer">60</span>s
 </div>
 
-<div class="card">
-<b>Response</b>
-<div id="response" class="log">---</div>
-</div>
+<div id="wordsContainer"></div>
 
-<div class="card">
-<b>📍 Location</b>
-<div id="loc" class="log">Inactive</div>
-<div id="map"></div>
-</div>
+<input type="text" id="spellInput" placeholder="Type the word here">
+<button id="checkBtn">Check Spelling</button>
+<button id="startBtn">Start Game</button>
 
-<div class="card">
-<b>🎥 Camera Feed</b>
-<video id="cam" autoplay playsinline muted></video>
-<canvas id="overlay"></canvas>
+<div id="message"></div>
 </div>
-</div>
-
-<script defer src="https://cdn.jsdelivr.net/npm/face-api.js"></script>
-<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
 
 <script>
-/* ==== GLOBALS ==== */
-let rec, voiceActive=false;
-let camStream=null, watchId=null;
-let dictation=false, trustedFacePresent=false;
-const heardEl=document.getElementById("heard");
-const responseEl=document.getElementById("response");
-const locEl=document.getElementById("loc");
-const cam=document.getElementById("cam");
-const overlay=document.getElementById("overlay");
-let map, marker;
+/* ===== Word List ===== */
+const words = ["apple","banana","orange","grape","strawberry","elephant","giraffe","zebra","lion","tiger","kangaroo","monkey","butterfly","caterpillar","dinosaur","volcano","computer","keyboard","javascript","puzzle"];
 
-/* ==== UTILITY FUNCTIONS ==== */
-function speak(text){
-  speechSynthesis.cancel();
-  let u=new SpeechSynthesisUtterance(text);
-  u.lang=navigator.language||"en-US";
-  speechSynthesis.speak(u);
-  responseEl.innerText=text;
+let activeWords=[], score=0, lives=3, timer=60;
+let gameInterval, countdownInterval;
+const wordsContainer=document.getElementById("wordsContainer");
+const scoreEl=document.getElementById("score");
+const livesEl=document.getElementById("lives");
+const timerEl=document.getElementById("timer");
+const messageEl=document.getElementById("message");
+const spellInput=document.getElementById("spellInput");
+
+/* ===== Game Functions ===== */
+function startGame(){
+  score=0; lives=3; timer=60;
+  scoreEl.innerText=score;
+  livesEl.innerText=lives;
+  timerEl.innerText=timer;
+  messageEl.innerText="";
+  spellInput.value="";
+  activeWords=[...words].sort(()=>0.5-Math.random()).slice(0,7); // pick 7 words
+  renderWords();
+  startTimer();
+  startVoiceRecognition();
 }
 
-function savePhoto(blob){
-  const link=document.createElement("a");
-  link.href=URL.createObjectURL(blob);
-  link.download=`emergency_${Date.now()}.png`;
-  link.click();
-  speak("Emergency photo saved");
+function renderWords(){
+  wordsContainer.innerHTML="";
+  activeWords.forEach(w=>{
+    const div=document.createElement("div");
+    div.classList.add("word");
+    div.innerText=w;
+    wordsContainer.appendChild(div);
+  });
 }
 
-/* ==== CAMERA CONTROL ==== */
-async function openCamera(){
-  if(camStream) return;
-  try{
-    camStream = await navigator.mediaDevices.getUserMedia({video:{facingMode:"user"}});
-    cam.srcObject = camStream;
-    overlay.width=cam.videoWidth;
-    overlay.height=cam.videoHeight;
-    detectFacesLoop();
-    speak("Camera on");
-  }catch(e){speak("Camera permission denied");}
+/* ===== Timer ===== */
+function startTimer(){
+  clearInterval(countdownInterval);
+  countdownInterval=setInterval(()=>{
+    timer--;
+    timerEl.innerText=timer;
+    if(timer<=0){endGame(false);}
+  },1000);
 }
 
-function closeCamera(){
-  if(!camStream) return;
-  camStream.getTracks().forEach(t=>t.stop());
-  camStream=null;
-  speak("Camera off");
-}
-
-/* ==== GPS & MAP ==== */
-function initMap(lat,lng){
-  map=L.map('map').setView([lat,lng],15);
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
-    maxZoom: 19
-  }).addTo(map);
-  marker=L.marker([lat,lng]).addTo(map);
-}
-
-function updateLocation(position){
-  const lat=position.coords.latitude;
-  const lng=position.coords.longitude;
-  locEl.innerHTML=`Lat: ${lat}<br>Lng: ${lng}<br>Accuracy: ${position.coords.accuracy} m`;
-  if(marker){marker.setLatLng([lat,lng]); map.setView([lat,lng]);}
-}
-
-function startTracking(){
-  if(!navigator.geolocation){speak("Geolocation not supported"); return;}
-  watchId=navigator.geolocation.watchPosition(updateLocation,()=>{
-    speak("Location error");
-  },{enableHighAccuracy:true});
-  speak("Tracking started");
-}
-
-function stopTracking(){
-  if(watchId){navigator.geolocation.clearWatch(watchId); watchId=null;}
-  speak("Tracking stopped");
-}
-
-/* ==== EMERGENCY PHOTO ==== */
-function takeEmergencyPhoto(){
-  if(!camStream){speak("Camera not active"); return;}
-  const snap=document.createElement("canvas");
-  snap.width=cam.videoWidth; snap.height=cam.videoHeight;
-  snap.getContext("2d").drawImage(cam,0,0,snap.width,snap.height);
-  snap.toBlob(savePhoto);
-}
-
-/* ==== FACE RECOGNITION ==== */
-let labeledFaceDescriptors=null;
-
-async function loadFaceModels(){
-  const MODEL_PATH='https://justadudewhohacks.github.io/face-api.js/models';
-  await faceapi.nets.tinyFaceDetector.loadFromUri(MODEL_PATH);
-  await faceapi.nets.faceLandmark68Net.loadFromUri(MODEL_PATH);
-  await faceapi.nets.faceRecognitionNet.loadFromUri(MODEL_PATH);
-  speak("Face models loaded");
-  // TODO: Add your trusted labeled descriptors here
-  // Example:
-  // labeledFaceDescriptors = [
-  //   new faceapi.LabeledFaceDescriptors("YourName", [descriptorArray])
-  // ];
-}
-
-function detectFacesLoop(){
-  if(!camStream) return;
-  const displaySize={width:cam.videoWidth,height:cam.videoHeight};
-  faceapi.matchDimensions(overlay, displaySize);
-
-  setInterval(async ()=>{
-    const detections=await faceapi.detectAllFaces(cam,new faceapi.TinyFaceDetectorOptions())
-      .withFaceLandmarks().withFaceDescriptors();
-    const ctx=overlay.getContext("2d");
-    ctx.clearRect(0,0,overlay.width,overlay.height);
-
-    if(detections.length>0){
-      const resized=faceapi.resizeResults(detections,displaySize);
-      faceapi.draw.drawDetections(overlay,resized);
-      faceapi.draw.drawFaceLandmarks(overlay,resized);
-      trustedFacePresent=true; // for demo; use matcher below when labels added
-    } else {trustedFacePresent=false;}
-  },300);
-}
-
-/* ==== VOICE COMMANDS ==== */
-function handleCommand(cmd){
-  heardEl.innerText=cmd;
-
-  if(!trustedFacePresent){
-    speak("No trusted face detected — commands blocked.");
-    return;
+/* ===== Check Word ===== */
+function checkWord(input){
+  const index=activeWords.findIndex(w=>w.toLowerCase()===input.toLowerCase());
+  if(index>=0){
+    const div=wordsContainer.children[index];
+    div.classList.add("correct");
+    setTimeout(()=>{div.remove();},300);
+    score++;
+    scoreEl.innerText=score;
+    activeWords.splice(index,1);
+    spellInput.value="";
+    if(activeWords.length===0){endGame(true);}
+  } else {
+    lives--;
+    livesEl.innerText=lives;
+    messageEl.innerText="Wrong! Try again.";
+    if(lives<=0){endGame(false);}
   }
-
-  cmd=cmd.toLowerCase();
-  if(cmd.includes("emergency")){
-    takeEmergencyPhoto();
-    return;
-  }
-
-  const acts={
-    "start camera": openCamera,
-    "stop camera": closeCamera,
-    "start tracking": startTracking,
-    "stop tracking": stopTracking,
-    "what time": ()=>speak("Time is "+new Date().toLocaleTimeString()),
-    "what date": ()=>speak("Date is "+new Date().toDateString()),
-    "battery status": ()=>{
-      navigator.getBattery().then(b=>{
-        speak("Battery at "+Math.round(b.level*100)+" percent");
-      });
-    },
-    "screenshot": ()=>{
-      html2canvas(document.body).then(canvas=>{
-        canvas.toBlob(savePhoto);
-      });
-    }
-  };
-
-  for(let k in acts){
-    if(cmd.includes(k)){ acts[k](); return; }
-  }
-  speak("Command not recognized");
 }
 
+/* ===== End Game ===== */
+function endGame(win){
+  clearInterval(countdownInterval);
+  stopVoiceRecognition();
+  messageEl.innerText=win?"🎉 You Win!":"💀 Game Over!";
+  wordsContainer.innerHTML="";
+}
+
+/* ===== Voice Recognition ===== */
+let rec=null;
 function startVoiceRecognition(){
-  if(voiceActive) return;
-  rec=new (window.SpeechRecognition||window.webkitSpeechRecognition)();
+  if(!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)){
+    console.log("Voice recognition not supported");
+    return;
+  }
+  rec=new (window.SpeechRecognition || window.webkitSpeechRecognition)();
   rec.continuous=true;
   rec.interimResults=false;
-  rec.lang=navigator.language||"en-US";
-
+  rec.lang="en-US";
   rec.onresult=e=>{
-    const spoken=e.results[e.results.length-1][0].transcript;
-    handleCommand(spoken);
+    const spoken=e.results[e.results.length-1][0].transcript.trim().toLowerCase();
+    checkWord(spoken);
   };
-  rec.onerror=()=>speak("Voice recognition error");
+  rec.onerror=e=>console.log("Voice error", e);
   rec.start();
-  voiceActive=true;
-  speak("Voice assistant activated. Face must remain visible.");
 }
 
-/* ==== START BUTTON ==== */
-document.getElementById("startBtn").addEventListener("click", async ()=>{
-  try{await navigator.mediaDevices.getUserMedia({audio:true,video:true});}
-  catch{ speak("Camera/Mic permission needed"); return; }
+function stopVoiceRecognition(){
+  if(rec){rec.stop();}
+}
 
-  startVoiceRecognition();
-  await loadFaceModels();
-  openCamera();
-  navigator.geolocation.getCurrentPosition(pos=>{
-    initMap(pos.coords.latitude,pos.coords.longitude);
-  });
-});
+/* ===== Event Listeners ===== */
+document.getElementById("startBtn").addEventListener("click",startGame);
+document.getElementById("checkBtn").addEventListener("click",()=>checkWord(spellInput.value));
+spellInput.addEventListener("keyup",e=>{if(e.key==="Enter"){checkWord(spellInput.value)}});
+
 </script>
-
 </body>
 </html>
