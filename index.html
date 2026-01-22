@@ -2,165 +2,136 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>SpeakFlow Pro</title>
+<title>SpeakFlow Pro MAX</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <style>
-body {
-  background:#020617;
-  color:#e5e7eb;
-  font-family:Arial, sans-serif;
-  margin:0;
-  padding:20px;
+body{margin:0;font-family:Arial;background:#020617;color:#e5e7eb}
+#app{max-width:900px;margin:auto;padding:20px}
+h1{text-align:center;color:#22d3ee}
+.card{background:#0f172a;padding:20px;border-radius:12px}
+#sentence{font-size:22px;min-height:90px;margin:15px 0}
+button,input{
+  width:100%;padding:12px;margin-top:8px;
+  font-size:16px;border-radius:8px;border:none
 }
-h1 { color:#22d3ee; text-align:center; }
-#game {
-  max-width:800px;
-  margin:auto;
-  background:#0f172a;
-  padding:20px;
-  border-radius:12px;
-}
-#text {
-  font-size:22px;
-  margin:20px 0;
-  min-height:80px;
-}
-button,input {
-  padding:12px;
-  margin:5px 0;
-  width:100%;
-  font-size:16px;
-  border-radius:8px;
-  border:none;
-}
-button {
-  background:#22d3ee;
-  cursor:pointer;
-}
-button:hover { background:#06b6d4; }
-#stats {
-  display:flex;
-  justify-content:space-between;
-  margin-top:10px;
-  font-weight:bold;
-}
-.bad { color:#f87171; }
-.good { color:#4ade80; }
-.fade { animation: fade 0.6s forwards; }
-@keyframes fade { to { opacity:0; } }
+button{background:#22d3ee;color:#000;font-weight:bold}
+button:hover{background:#06b6d4}
+#stats{display:flex;justify-content:space-between;margin-top:10px}
+.good{color:#4ade80}
+.bad{color:#f87171}
 </style>
 </head>
 <body>
 
-<h1>🎤 SpeakFlow Pro</h1>
+<div id="app">
+<h1>🎤 SpeakFlow Pro MAX</h1>
 
-<div id="game">
-  <div id="tier">Tier: Foundation</div>
-  <div id="level">Level 1</div>
+<div class="card">
+<div id="rank"></div>
+<div id="tier"></div>
+<div id="level"></div>
 
-  <div id="text"></div>
+<div id="sentence"></div>
 
-  <input id="input" placeholder="Type here if needed">
+<input id="input" placeholder="Type here (Spell Mode)">
 
-  <button onclick="listen()">🎤 Speak</button>
-  <button onclick="checkTyping()">✅ Submit</button>
-  <button onclick="playAudio()">🔊 Listen</button>
+<button onclick="speak()">🎤 Speak</button>
+<button onclick="submit()">✅ Submit</button>
+<button onclick="listen()">🔊 Listen</button>
 
-  <div id="feedback"></div>
+<div id="feedback"></div>
 
-  <div id="stats">
-    <span>Score: <span id="score">0</span></span>
-    <span>Lives: <span id="lives">3</span></span>
-    <span>Streak: <span id="streak">0</span></span>
-  </div>
+<div id="stats">
+<span>Score: <b id="score"></b></span>
+<span>Lives: <b id="lives"></b></span>
+<span>Streak: <b id="streak"></b></span>
+</div>
+</div>
 </div>
 
 <script>
-const content = [
-  ["Success begins with disciplined action.","Confidence grows through repetition."],
-  ["Clear communication builds trust.","Listening improves influence."],
-  ["Professional language reflects competence.","Your voice sells your ideas."],
-  ["This product solves real customer problems.","Value creates loyalty."],
-  ["Strategic communication drives leadership.","Negotiation requires clarity and control."]
+const TIERS=[
+"Foundation","Fluency","Communication","Marketing","Executive"
 ];
 
-let tier=0, level=0, index=0;
-let score=0, lives=3, streak=0;
+const CONTENT=[
+["Success begins with discipline.","Clear speech builds confidence.","Consistency creates results."],
+["Effective communication improves relationships.","Listening creates influence.","Fluency requires practice."],
+["Professional language builds credibility.","Strong communication earns trust.","Confidence changes outcomes."],
+["This offer delivers real value.","People buy clarity and confidence.","Selling is solving problems."],
+["Leadership requires clarity.","Negotiation creates advantage.","Strategy drives long-term success."]
+];
 
-const textEl=document.getElementById("text");
-const tierEl=document.getElementById("tier");
-const levelEl=document.getElementById("level");
-const feedback=document.getElementById("feedback");
+let state=JSON.parse(localStorage.getItem("speakflow"))||{
+tier:0,level:1,score:0,lives:3,streak:0
+};
 
-function load() {
-  if (tier >= content.length) {
-    textEl.innerHTML="🏆 MASTER LEVEL ACHIEVED";
-    return;
-  }
-  textEl.classList.remove("fade");
-  textEl.innerText = content[tier][index];
-  tierEl.innerText="Tier: "+["Foundation","Fluency","Communication","Marketing","Executive"][tier];
-  levelEl.innerText="Level "+(tier*10+index+1);
+const s=document.getElementById("sentence");
+const f=document.getElementById("feedback");
+
+function save(){localStorage.setItem("speakflow",JSON.stringify(state));}
+
+function rank(){
+if(state.score<200)return"Beginner";
+if(state.score<500)return"Skilled";
+if(state.score<900)return"Fluent";
+if(state.score<1400)return"Persuasive";
+if(state.score<2000)return"Professional";
+return"Master Communicator";
+}
+
+function load(){
+document.getElementById("rank").innerText="Rank: "+rank();
+document.getElementById("tier").innerText="Tier: "+TIERS[state.tier];
+document.getElementById("level").innerText="Level: "+state.level;
+document.getElementById("score").innerText=state.score;
+document.getElementById("lives").innerText=state.lives;
+document.getElementById("streak").innerText=state.streak;
+
+const list=CONTENT[state.tier];
+s.innerText=list[Math.floor(Math.random()*list.length)];
 }
 
 load();
 
-function normalize(t){return t.toLowerCase().replace(/[^a-z ]/g,"").trim();}
+function clean(t){return t.toLowerCase().replace(/[^a-z ]/g,"").trim();}
 
 function success(){
-  score+=10;
-  streak++;
-  textEl.classList.add("fade");
-  setTimeout(()=>{
-    index++;
-    if(index>=content[tier].length){ tier++; index=0; }
-    load();
-  },500);
+state.score+=10;
+state.streak++;
+state.level++;
+if(state.level%20===0 && state.tier<TIERS.length-1) state.tier++;
+f.innerHTML="<span class='good'>Correct</span>";
+save();load();
 }
 
 function fail(){
-  lives--;
-  streak=0;
-  feedback.innerHTML="<span class='bad'>Incorrect</span>";
-  if(lives<=0){
-    textEl.innerHTML="❌ GAME OVER – Restart to improve";
-  }
+state.lives--;
+state.streak=0;
+f.innerHTML="<span class='bad'>Incorrect</span>";
+if(state.lives<=0){
+s.innerText="GAME OVER – Reload to improve";
+}
+save();load();
 }
 
-function update(){
-  document.getElementById("score").innerText=score;
-  document.getElementById("lives").innerText=lives;
-  document.getElementById("streak").innerText=streak;
-}
-
-function checkTyping(){
-  const val=document.getElementById("input").value;
-  if(normalize(val)===normalize(textEl.innerText)){
-    feedback.innerHTML="<span class='good'>Excellent</span>";
-    success();
-  } else fail();
-  update();
-}
-
-function playAudio(){
-  const u=new SpeechSynthesisUtterance(textEl.innerText);
-  speechSynthesis.speak(u);
+function submit(){
+const v=document.getElementById("input").value;
+clean(v)===clean(s.innerText)?success():fail();
+document.getElementById("input").value="";
 }
 
 function listen(){
-  const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
-  if(!SR){ alert("Speech not supported"); return;}
-  const r=new SR();
-  r.lang="en-US";
-  r.start();
-  r.onresult=e=>{
-    const said=e.results[0][0].transcript;
-    if(normalize(said)===normalize(textEl.innerText)){
-      feedback.innerHTML="<span class='good'>Perfect pronunciation</span>";
-      success();
-    } else fail();
-    update();
-  };
+speechSynthesis.speak(new SpeechSynthesisUtterance(s.innerText));
+}
+
+function speak(){
+const SR=window.SpeechRecognition||window.webkitSpeechRecognition;
+if(!SR){alert("Speech not supported");return;}
+const r=new SR();r.lang="en-US";r.start();
+r.onresult=e=>{
+clean(e.results[0][0].transcript)===clean(s.innerText)?success():fail();
+};
 }
 </script>
 
