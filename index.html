@@ -2,221 +2,180 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Read Fluent Pro</title>
+<title>Speak & Win – Adult English Mastery</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-
 <style>
-body{
-  margin:0;
-  font-family:system-ui,Segoe UI,Roboto,Arial;
-  background:#0a0f1c;
-  color:#e5e7eb;
+body {
+  font-family: Arial, sans-serif;
+  background: #0f172a;
+  color: #fff;
+  margin: 0;
+  padding: 20px;
+  text-align: center;
 }
-header{
-  padding:16px;
-  text-align:center;
-  font-weight:600;
-  background:#020617;
+h1 { color: #38bdf8; }
+#card {
+  background: #1e293b;
+  padding: 20px;
+  border-radius: 12px;
+  max-width: 700px;
+  margin: auto;
 }
-.container{
-  max-width:900px;
-  margin:auto;
-  padding:20px;
+#sentence {
+  font-size: 22px;
+  margin: 20px 0;
 }
-.stats{
-  display:grid;
-  grid-template-columns:repeat(4,1fr);
-  gap:10px;
-  font-size:14px;
-  opacity:.9;
+input {
+  width: 100%;
+  padding: 12px;
+  font-size: 18px;
+  margin-top: 10px;
 }
-.card{
-  margin-top:25px;
-  padding:40px;
-  background:#020617;
-  border-radius:14px;
-  font-size:28px;
-  line-height:1.6;
+button {
+  padding: 12px 20px;
+  margin: 10px;
+  font-size: 16px;
+  background: #38bdf8;
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
 }
-.fade{opacity:0;transition:.4s;}
-.progress{
-  height:6px;
-  background:#1f2937;
-  border-radius:6px;
-  margin-top:15px;
+button:hover { background: #0ea5e9; }
+#status { margin-top: 10px; font-weight: bold; }
+#stats { margin-top: 15px; }
+.fade {
+  animation: fadeOut 0.6s forwards;
 }
-.bar{
-  height:100%;
-  width:100%;
-  background:#22c55e;
-}
-button{
-  margin-top:20px;
-  padding:12px 20px;
-  border:none;
-  border-radius:8px;
-  background:#2563eb;
-  color:#fff;
-  font-weight:600;
-}
-.summary{
-  margin-top:25px;
-  font-size:15px;
-  opacity:.85;
+@keyframes fadeOut {
+  to { opacity: 0; transform: scale(0.9); }
 }
 </style>
 </head>
-
 <body>
 
-<header>READ FLUENT PRO — Adult Reading Trainer</header>
+<h1>🎤 Speak & Win</h1>
+<p>Adult English Reading, Speaking & Selling Skills</p>
 
-<div class="container">
+<div id="card">
+  <div id="level">Level 1 – Beginner</div>
+  <div id="sentence"></div>
 
-<div class="stats">
-  <div>Level: <span id="level">1</span></div>
-  <div>Accuracy: <span id="accuracy">100%</span></div>
-  <div>Speed: <span id="wpm">0</span> WPM</div>
-  <div>Rank: <span id="rank">Foundation</span></div>
-</div>
+  <input id="textInput" placeholder="Type the sentence here (optional)">
+  
+  <div>
+    <button onclick="startListening()">🎤 Speak</button>
+    <button onclick="speakSentence()">🔊 Listen</button>
+    <button onclick="checkTyping()">✅ Submit</button>
+  </div>
 
-<div class="progress"><div id="bar" class="bar"></div></div>
-
-<div id="card" class="card"></div>
-
-<button onclick="start()">Start / Resume</button>
-
-<div id="summary" class="summary"></div>
-
+  <div id="status"></div>
+  <div id="stats">Score: 0 | Lives: 3</div>
 </div>
 
 <script>
-/* ===== CONTENT (ADULT ONLY) ===== */
-const levels=[
- ["policy","market","strategy","value","process"],
- ["The report must be completed today.",
-  "Please review the agreement carefully."],
- ["Clear communication improves professional performance.",
-  "Time management directly affects productivity."],
- ["Strategic planning requires detailed analysis and critical thinking."],
- ["Fluent reading allows professionals to process information quickly and accurately under pressure."]
+const levels = [
+  { level: "Beginner", text: "Success begins with discipline." },
+  { level: "Beginner", text: "Confidence grows with practice." },
+  { level: "Beginner", text: "Clear speech creates understanding." },
+
+  { level: "Intermediate", text: "Effective communication builds strong relationships." },
+  { level: "Intermediate", text: "Listening is more powerful than speaking." },
+  { level: "Intermediate", text: "Professional language creates credibility." },
+
+  { level: "Advanced", text: "This solution delivers measurable value to your business." },
+  { level: "Advanced", text: "Strong messaging influences customer decisions." },
+  { level: "Advanced", text: "People buy confidence before they buy products." },
+
+  { level: "Senior", text: "Strategic positioning determines long-term competitive advantage." },
+  { level: "Senior", text: "Leadership communication drives organizational success." },
+  { level: "Senior", text: "Negotiation is the art of mutual value creation." }
 ];
 
-let level=0,index=0;
-let attempts=0,correct=0;
-let startTime=null,wordsRead=0;
-let time=100,timer;
+let index = 0;
+let score = 0;
+let lives = 3;
 
-const card=document.getElementById("card");
-const bar=document.getElementById("bar");
+const sentenceEl = document.getElementById("sentence");
+const levelEl = document.getElementById("level");
+const statusEl = document.getElementById("status");
+const statsEl = document.getElementById("stats");
+const inputEl = document.getElementById("textInput");
 
-/* ===== START ===== */
-function start(){
-  startTime=Date.now();
-  show();
-  listen();
-  startTimer();
+function loadSentence() {
+  if (index >= levels.length) {
+    sentenceEl.innerHTML = "🏆 YOU WIN! You completed all levels.";
+    return;
+  }
+  sentenceEl.classList.remove("fade");
+  sentenceEl.innerText = levels[index].text;
+  levelEl.innerText = `Level ${index+1} – ${levels[index].level}`;
+  inputEl.value = "";
 }
 
-/* ===== DISPLAY ===== */
-function show(){
-  time=100;
-  bar.style.width="100%";
-  card.classList.remove("fade");
-  card.innerText=levels[level][index];
+loadSentence();
+
+function normalize(text) {
+  return text.toLowerCase().replace(/[^a-z ]/g, "").trim();
 }
 
-/* ===== TIMER ===== */
-function startTimer(){
-  clearInterval(timer);
-  timer=setInterval(()=>{
-    time--;
-    bar.style.width=time+"%";
-    if(time<=0) show();
-  },140 - level*10);
+function success() {
+  score += 10;
+  sentenceEl.classList.add("fade");
+  setTimeout(() => {
+    index++;
+    loadSentence();
+  }, 600);
 }
 
-/* ===== VOICE ===== */
-let rec;
-function listen(){
-  if(!('webkitSpeechRecognition'in window||'SpeechRecognition'in window)) return;
-  rec=new (window.SpeechRecognition||window.webkitSpeechRecognition)();
-  rec.lang="en-US";
-  rec.continuous=true;
-  rec.onresult=e=>{
-    let spoken=e.results[e.results.length-1][0].transcript;
-    check(spoken);
-  };
-  rec.start();
+function fail() {
+  lives--;
+  if (lives <= 0) {
+    sentenceEl.innerHTML = "❌ GAME OVER – Try Again";
+    return;
+  }
 }
 
-/* ===== MATCHING ===== */
-function normalize(t){
-  return t.replace(/[^\w\s]/g,"").toLowerCase().trim();
-}
-function similarity(a,b){
-  let s=0;
-  for(let i=0;i<Math.min(a.length,b.length);i++)
-    if(a[i]===b[i]) s++;
-  return s/Math.max(a.length,b.length);
+function updateStats() {
+  statsEl.innerText = `Score: ${score} | Lives: ${lives}`;
 }
 
-/* ===== CHECK ===== */
-function check(spoken){
-  attempts++;
-  let expected=normalize(levels[level][index]);
-  let said=normalize(spoken);
-
-  if(said.includes(expected)||similarity(expected,said)>0.78){
-    correct++;
-    wordsRead+=expected.split(" ").length;
-    card.classList.add("fade");
-    setTimeout(next,350);
+function checkTyping() {
+  if (normalize(inputEl.value) === normalize(levels[index].text)) {
+    statusEl.innerText = "✅ Correct!";
+    success();
+  } else {
+    statusEl.innerText = "❌ Incorrect";
+    fail();
   }
   updateStats();
 }
 
-/* ===== NEXT ===== */
-function next(){
-  index++;
-  if(index>=levels[level].length){
-    level++;
-    index=0;
-    if(level>=levels.length){
-      end();
-      return;
-    }
+function speakSentence() {
+  const utter = new SpeechSynthesisUtterance(levels[index].text);
+  speechSynthesis.speak(utter);
+}
+
+function startListening() {
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  if (!SpeechRecognition) {
+    alert("Speech Recognition not supported");
+    return;
   }
-  show();
-}
+  const recognition = new SpeechRecognition();
+  recognition.lang = "en-US";
+  recognition.start();
 
-/* ===== STATS ===== */
-function updateStats(){
-  document.getElementById("level").innerText=level+1;
-  document.getElementById("accuracy").innerText=
-    Math.round((correct/attempts)*100)+"%";
-
-  let minutes=(Date.now()-startTime)/60000;
-  let wpm=Math.round(wordsRead/Math.max(minutes,0.1));
-  document.getElementById("wpm").innerText=wpm;
-
-  document.getElementById("rank").innerText=
-    level<1?"Foundation":
-    level<2?"Functional":
-    level<3?"Professional":
-    level<4?"Advanced":"Senior";
-}
-
-/* ===== END ===== */
-function end(){
-  clearInterval(timer);
-  rec.stop();
-  card.innerText="Session completed.";
-  document.getElementById("summary").innerHTML=
-    `<b>Session Summary</b><br>
-     Accuracy: ${Math.round((correct/attempts)*100)}%<br>
-     Reading Speed: ${document.getElementById("wpm").innerText} WPM<br>
-     Level Reached: ${level+1}`;
+  recognition.onresult = (e) => {
+    const spoken = e.results[0][0].transcript;
+    if (normalize(spoken) === normalize(levels[index].text)) {
+      statusEl.innerText = "🎉 Perfect pronunciation!";
+      success();
+    } else {
+      statusEl.innerText = "❌ Try again";
+      fail();
+    }
+    updateStats();
+  };
 }
 </script>
 
