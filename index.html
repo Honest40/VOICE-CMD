@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<title>Personal Safety Assistant + Face & Voice</title>
+<title>Trusted Personal Security Assistant</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <style>
 body{margin:0;font-family:Arial;background:#020617;color:#fff}
@@ -18,10 +18,9 @@ video,canvas{width:100%;border-radius:10px;margin-top:10px;}
 </head>
 <body>
 
-<header>🎙 Personal Safety + Face & Voice Assistant</header>
+<header>🎙 Trusted Personal Security Assistant</header>
 
 <div class="container">
-
 <button id="startBtn">▶ Start Assistant</button>
 
 <div class="card">
@@ -51,7 +50,6 @@ video,canvas{width:100%;border-radius:10px;margin-top:10px;}
 <input id="note" placeholder="Note">
 <button id="submitBtn" onclick="alert('Form Submitted!')">Submit</button>
 </div>
-
 </div>
 
 <!-- Face API library -->
@@ -61,6 +59,8 @@ video,canvas{width:100%;border-radius:10px;margin-top:10px;}
 /* ==== GLOBAL VARIABLES ==== */
 let rec, isVoiceActive=false;
 let dictation=false, camStream=null, watchId=null;
+let trustedFaceDescriptors=null;
+let trustedVoiceSample=null; // placeholder for basic voice matching
 const startBtn=document.getElementById("startBtn");
 const heard=document.getElementById("heard");
 const response=document.getElementById("response");
@@ -71,7 +71,7 @@ const submitBtn=document.getElementById("submitBtn");
 const nameInput=document.getElementById("name");
 const noteInput=document.getElementById("note");
 
-/* ==== SPEECH FUNCTIONS ==== */
+/* ==== SPEECH ==== */
 function speak(text){
   speechSynthesis.cancel();
   let msg=new SpeechSynthesisUtterance(text);
@@ -127,12 +127,14 @@ function typeCommand(cmd){
   }
 }
 
-/* ==== COMMAND HANDLER ==== */
+/* ==== COMMAND HANDLER WITH FACE + VOICE AUTH ==== */
 function handle(cmd){
   heard.innerText=cmd;
   typeCommand(cmd);
 
-  // Click buttons
+  if(!trustedFaceDetected){speak("Face not recognized. Commands blocked."); return;}
+  if(trustedVoiceSample && !voiceVerified){speak("Voice not recognized. Commands blocked."); return;}
+
   if(cmd.startsWith("click")){
     let text=cmd.replace("click","").trim();
     document.querySelectorAll("button").forEach(b=>{
@@ -145,11 +147,10 @@ function handle(cmd){
 
   // Emergency
   if(cmd.includes("emergency") || cmd.includes("help me")){
-    speak("Emergency detected. Stay calm. Activate safety protocols.");
+    speak("Emergency detected. Activate safety protocols.");
     return;
   }
 
-  // Map of other commands
   const commands={
     "start camera": openCamera,
     "stop camera": closeCamera,
@@ -182,18 +183,23 @@ function startVoiceRecognition(){
   rec.onerror=e=>{speak("Voice recognition error")};
   rec.start();
   isVoiceActive=true;
-  speak("Voice Assistant activated. You can control everything now.");
+  speak("Voice Assistant activated. Commands require trusted face + voice.");
 }
 
 /* ==== FACE RECOGNITION ==== */
-let labeledDescriptors=null;
+let trustedFaceDetected=false;
+let voiceVerified=false;
+
 async function loadFaceModels(){
   await faceapi.nets.tinyFaceDetector.loadFromUri("https://justadomain.github.io/models");
   await faceapi.nets.faceLandmark68Net.loadFromUri("https://justadomain.github.io/models");
   await faceapi.nets.faceRecognitionNet.loadFromUri("https://justadomain.github.io/models");
-  await faceapi.nets.ssdMobilenetv1.loadFromUri("https://justadomain.github.io/models");
   speak("Face models loaded");
+  // Load trusted face descriptors here (use reference images)
+  // Example placeholder:
+  // trustedFaceDescriptors = [ new faceapi.LabeledFaceDescriptors("Honest",[descriptor]) ];
 }
+
 async function detectFaceLoop(){
   if(!camStream) return;
   const displaySize={width:cam.videoWidth,height:cam.videoHeight};
@@ -207,8 +213,15 @@ async function detectFaceLoop(){
       const resizedDetections=faceapi.resizeResults(detections,displaySize);
       faceapi.draw.drawDetections(overlay,resizedDetections);
       faceapi.draw.drawFaceLandmarks(overlay,resizedDetections);
-      // Optional: match with labeled descriptors if registered
-    }
+      // Match with trusted face descriptors
+      if(trustedFaceDescriptors){
+        const faceMatcher=new faceapi.FaceMatcher(trustedFaceDescriptors,0.5);
+        detections.forEach(d=>{
+          const bestMatch=faceMatcher.findBestMatch(d.descriptor);
+          if(bestMatch.label!=="unknown"){trustedFaceDetected=true; speak("Trusted face detected"); }
+        });
+      }
+    } else {trustedFaceDetected=false;}
   },200);
 }
 
